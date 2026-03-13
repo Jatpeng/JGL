@@ -1,56 +1,106 @@
-# JGL Demos
+# JGL Engine
 
-![项目预览](./Images/README/image-20230521164413353.png)
+![JGL Engine Hero](./Images/README/jgl-engine-hero.png)
 
-这是一个基于 OpenGL 的渲染实验项目，当前已经包含：
-- 编辑器式窗口与 `SceneView / Property Panel`
-- 模型、材质、Shader 与纹理加载
-- Forward / Deferred 两套渲染路径
-- PBR、天空盒、Bloom、毛发与骨骼动画示例
-- 可逐步演进成独立渲染引擎的运行时结构
+JGL Engine 是一个基于 OpenGL 的实时渲染引擎原型。
+它正从早期的渲染实验项目，逐步演进为具备运行时内核、资源系统、编辑器外壳与双渲染管线能力的轻量引擎。
+
+> 当前封面展示的是 JGL Engine 的编辑器界面、延迟渲染主视口以及 G-Buffer 调试预览。
+
+## 项目概述
+
+当前 JGL Engine 主要聚焦在渲染引擎核心层的建设：
+
+- 可复用的渲染运行时
+- 基于 OpenGL 的 Forward / Deferred 双渲染路径
+- 材质、Shader、模型与纹理资源加载
+- 面向 PBR 的材质与光照工作流
+- 骨骼动画导入、更新与 GPU 蒙皮
+- 基于 ImGui 的场景调试与编辑器界面
+
+这套代码已经不再只是若干效果示例的集合，而是在逐步形成一个可以继续抽象、嵌入和对外调用的小型渲染引擎内核。
+
+## 当前能力
+
+- 前向渲染
+  - 支持不透明物体、透明物体和基础实时显示路径
+- 延迟渲染
+  - 支持 G-Buffer、Lighting Pass、Forward Overlay Pass 和调试视图
+- 材质系统
+  - 支持 `.mtl` 材质定义、Shader 绑定、贴图槽、标量与向量参数
+- 资源加载
+  - 通过资源管理器统一加载 mesh、shader、material、cubemap 和 texture
+- 场景运行时
+  - 包含相机控制、天空盒、地面、灯光数组、离屏渲染与场景视口输出
+- 动画系统
+  - 支持基于 Assimp 的骨骼提取、动画更新与 GPU 蒙皮
+- 编辑器外壳
+  - 包含 SceneView、Property Panel、调试预览、文件加载与渲染模式切换
+
+## 架构分层
+
+- `JGL_MeshLoader/source/engine`
+  - 渲染运行时、资源管理器以及对外可复用接口
+- `JGL_MeshLoader/source/render`
+  - OpenGL 上下文、Framebuffer、Deferred G-Buffer 与底层缓冲管理
+- `JGL_MeshLoader/source/elems`
+  - 相机、模型、材质、动画、网格与场景元素数据
+- `JGL_MeshLoader/source/ui`
+  - ImGui 编辑器外壳、场景视口与属性面板
+- `JGL_MeshLoader/shaders`
+  - Forward、Deferred、内置效果与后处理 Shader
+- `JGL_MeshLoader/resource`
+  - 默认资源、材质定义、纹理与内置资产
 
 ## 文档索引
 
-`sections/` 目录收集了当前项目的设计文档和功能说明，建议按下面顺序阅读：
+`sections/` 目录中保存了当前功能设计和实现说明：
 
 - [编辑器架构](sections/JGLEditor.md)
-  说明窗口循环、SceneView、Property Panel 与资源加载入口。
 - [延迟渲染管线设计](sections/延迟渲染管线设计.md)
-  说明 G-Buffer、Lighting Pass、Forward Overlay 与 UI 切换方案。
 - [Python 接口设计](sections/Python接口设计.md)
-  说明如何把当前运行时封装为可被 Python 调用的场景与对象接口。
 - [骨骼动画加载](sections/骨骼动画加载.md)
-  说明 Assimp 骨骼提取、Animation/Animator 更新与 GPU 蒙皮流程。
 - [PBR 材质](sections/PBR材质.md)
-  说明 PBR 贴图通道、材质参数和光照计算约定。
 - [Bloom](sections/bloom.md)
-  说明 Bloom 示例当前状态、接入点与扩展方向。
 - [毛发材质](sections/Fur.md)
-  说明多 Pass 毛发表现与参数控制方式。
 - [星空材质](sections/SkyNight.md)
-  说明体积感夜空效果的 shader 思路与使用方式。
 - [天气效果](sections/Weather.md)
-  说明天气与水面扰动相关实验内容。
 
-## 当前代码结构
+## 项目定位
 
-- `JGL_MeshLoader/source/engine`
-  渲染运行时、资源管理与对外可复用接口。
-- `JGL_MeshLoader/source/ui`
-  ImGui 界面层，包括 Scene 面板与属性面板。
-- `JGL_MeshLoader/source/render`
-  OpenGL 上下文、FBO/G-Buffer 与底层缓冲管理。
-- `JGL_MeshLoader/source/elems`
-  相机、模型、材质、动画等场景元素。
-- `JGL_MeshLoader/shaders`
-  Forward、Deferred、后处理与内置效果 shader。
-- `JGL_MeshLoader/resource`
-  默认模型、材质定义、纹理与内置资源。
+当前 JGL Engine 更适合被理解为：
+
+- 一个持续演进中的渲染引擎核心
+- 一个用于渲染调试、效果验证和运行时开发的桌面编辑器外壳
+- 一个未来可被 Python 或其他宿主程序调用的渲染基础设施
+
+它还不是一个完整的生产级引擎，但已经具备继续工程化演进的基础。
+
+## TODO List
+
+在成为更完整的引擎平台之前，JGL Engine 仍缺少以下能力：
+
+- 场景图或基于 ECS 的场景数据模型
+- 面向外部宿主程序的稳定运行时 API
+- 可正式使用的 Python 绑定层与脚本场景创建接口
+- 方向光、点光、聚光的阴影系统
+- IBL 与反射环境光照流程
+- 可配置的后处理框架与 Render Graph / Pass Graph
+- 比当前 forward overlay 更完整的透明物体方案
+- 灯光、相机、可渲染对象的统一序列化格式
+- 带缓存、预处理和依赖跟踪的资源导入流水线
+- Shader、材质、纹理的热重载能力
+- 编辑器层与运行时层更彻底的模块解耦
+- 自动化测试、验证场景和 CI 构建流程
+- 多场景管理与保存/加载工作流
+- 更清晰的跨平台窗口与平台抽象
+- 除 OpenGL 之外的渲染后端抽象
 
 ## 技术栈
 
-- GLEW: <http://glew.sourceforge.net/>
-- GLFW: <https://www.glfw.org/>
-- GLM: <https://glm.g-truc.net/0.9.9/index.html>
-- Assimp: <https://github.com/assimp/assimp>
-- ImGui: <https://github.com/ocornut/imgui>
+- OpenGL
+- GLEW
+- GLFW
+- GLM
+- Assimp
+- ImGui
