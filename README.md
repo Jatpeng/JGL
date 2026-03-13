@@ -3,9 +3,9 @@
 ![JGL Engine Hero](./Images/README/jgl-engine-hero.png)
 
 JGL Engine 是一个基于 OpenGL 的实时渲染引擎原型。
-它正从早期的渲染实验项目，逐步演进为具备运行时内核、资源系统、编辑器外壳与双渲染管线能力的轻量引擎。
+它正在从早期的渲染实验项目，逐步演进为具备运行时内核、资源系统、编辑器外壳，以及 Forward / Deferred 双渲染管线能力的轻量引擎。
 
-> 当前封面展示的是 JGL Engine 的编辑器界面、延迟渲染主视口以及 G-Buffer 调试预览。
+> 当前封面展示的是 JGL Engine 的编辑器界面、延迟渲染主视口，以及 G-Buffer 调试预览。
 
 ## 项目概述
 
@@ -52,7 +52,7 @@ JGL Engine 是一个基于 OpenGL 的实时渲染引擎原型。
 - `JGL_MeshLoader/resource`
   - 默认资源、材质定义、纹理与内置资产
 
-## 文档索引
+## 文档与图片
 
 `sections/` 目录中保存了当前功能设计和实现说明：
 
@@ -65,6 +65,43 @@ JGL Engine 是一个基于 OpenGL 的实时渲染引擎原型。
 - [毛发材质](sections/Fur.md)
 - [星空材质](sections/SkyNight.md)
 - [天气效果](sections/Weather.md)
+
+文档图片资源已随仓库提交，主要位于以下目录：
+
+- `Images/README`
+- `sections/Images`
+
+## 构建方法
+
+### 环境要求
+
+- Windows
+- CMake 3.16 及以上
+- Visual Studio 2019/2022 或兼容的 MSVC 工具链
+
+项目依赖的 `GLEW / GLFW / Assimp / ImGui / GLM` 已按当前工程结构接入仓库，其中运行时 `assimp` 动态库会在构建后自动复制到输出目录。
+
+### 使用 CMake 构建
+
+在仓库根目录执行：
+
+```powershell
+cmake -S . -B build
+cmake --build build --config Debug
+```
+
+生成完成后，运行：
+
+```powershell
+.\build\bin\Debug\JGL_MeshLoader.exe
+```
+
+如果需要 `Release` 版本，可改为：
+
+```powershell
+cmake --build build --config Release
+.\build\bin\Release\JGL_MeshLoader.exe
+```
 
 ## 项目定位
 
