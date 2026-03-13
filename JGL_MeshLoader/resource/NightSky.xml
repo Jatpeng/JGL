@@ -1,0 +1,36 @@
+<Material
+Name ="NightSky"
+multipass ="false"
+shader= "JGL_MeshLoader/shaders/nightsky_fs.shader"
+>
+  <!--<Param
+Name="baseMap"
+Type ="Texture"
+Default ="JGL_MeshLoader/resource/textures/weather/base.png"
+/>
+  <Param
+Name ="metallic"
+Type ="float"
+Default ="0.1"
+/>
+  <Param
+Name ="roughness"
+Type ="float"
+Default ="0.2"
+/>
+  <Param
+Name ="color"
+Type ="float3"
+Default ="1.0,1.0,1.0"
+/>
+  <Param
+Name ="lightPosition"
+Type ="float3"
+Default ="1.5,3.0,3.0"
+/>
+  <Param
+Name ="lightColor"
+Type ="float3"
+Default ="100,100,100"
+/>-->
+</Material>
