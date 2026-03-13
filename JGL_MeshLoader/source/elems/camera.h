@@ -90,6 +90,11 @@ namespace nelems
 			return mViewMatrix;
 		}
 
+		glm::vec3 get_position() const
+		{
+			return mPosition;
+		}
+
 		void on_mouse_wheel(double delta)
 		{
 			set_distance(delta * 0.5f);

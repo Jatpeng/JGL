@@ -12,14 +12,22 @@ uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D normalMap;
 
-uniform float ao;
-// lights
-uniform vec3 lightPosition;
-uniform vec3 lightColor;
-
+uniform float ao = 1.0;
 uniform vec3 camPos;
+uniform float opacity = 1.0;
 
 const float PI = 3.14159265359;
+const int MAX_DEFERRED_LIGHTS = 8;
+
+struct PointLight
+{
+    vec3 position;
+    vec3 color;
+    int enabled;
+};
+
+uniform PointLight lights[MAX_DEFERRED_LIGHTS];
+uniform int lightCount = 0;
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 // Easy trick to get tangent-normals to world-space to keep PBR code simplified.
@@ -82,16 +90,42 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
   return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
+
+vec3 accumulateLight(vec3 lightPos, vec3 lightRadiance, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
+{
+  vec3 L = normalize(lightPos - WorldPos);
+  vec3 H = normalize(V + L);
+  float distance = length(lightPos - WorldPos);
+  float attenuation = 1.0 / max(distance * distance, 0.001);
+  vec3 radiance = lightRadiance * attenuation;
+
+  float NDF = DistributionGGX(N, H, roughness);
+  float G = GeometrySmith(N, V, L, roughness);
+  vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
+
+  vec3 nominator = NDF * G * F;
+  float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+  vec3 specular = nominator / max(denominator, 0.001);
+
+  vec3 kS = F;
+  vec3 kD = vec3(1.0) - kS;
+  kD *= 1.0 - metallic;
+
+  float NdotL = max(dot(N, L), 0.0);
+  return (kD * albedo / PI + specular) * radiance * NdotL;
+}
 // ----------------------------------------------------------------------------
 void main()
 {
   vec3 N = getNormalFromMap();
 
   vec3 V = normalize(camPos - WorldPos);
-  //vec3 albedo = texture(baseMap, TexCoords).rgb*color;
-  vec3 albedo = pow(texture(baseMap, TexCoords).rgb, vec3(2.2));
+  vec4 albedoSample = texture(baseMap, TexCoords);
+  // Keep the forward path in the same linear workflow as deferred shading.
+  vec3 albedo = pow(albedoSample.rgb, vec3(2.2)) * color;
   float metallic = texture(metallicMap, TexCoords).r;
   float roughness = texture(roughnessMap, TexCoords).r;
+  float surfaceAlpha = albedoSample.a * opacity;
 
   // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
   // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
@@ -101,38 +135,13 @@ void main()
   // reflectance equation
   vec3 Lo = vec3(0.0);
 
-  // calculate per-light radiance
-  vec3 L = normalize(lightPosition - WorldPos);
-  vec3 H = normalize(V + L);
-  float distance = length(lightPosition - WorldPos);
-  float attenuation = 1.0 / (distance * distance);
-  vec3 radiance = lightColor * attenuation;
+  for (int i = 0; i < lightCount && i < MAX_DEFERRED_LIGHTS; ++i)
+  {
+    if (lights[i].enabled == 0)
+      continue;
 
-  // Cook-Torrance BRDF
-  float NDF = DistributionGGX(N, H, roughness);
-  float G = GeometrySmith(N, V, L, roughness);
-  vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
-
-  vec3 nominator = NDF * G * F;
-  float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-  vec3 specular = nominator / max(denominator, 0.001); // prevent divide by zero for NdotV=0.0 or NdotL=0.0
-
-  // kS is equal to Fresnel
-  vec3 kS = F0;
-  // for energy conservation, the diffuse and specular light can't
-  // be above 1.0 (unless the surface emits light); to preserve this
-  // relationship the diffuse component (kD) should equal 1.0 - kS.
-  vec3 kD = vec3(1.0) - kS;
-  // multiply kD by the inverse metalness such that only non-metals 
-  // have diffuse lighting, or a linear blend if partly metal (pure metals
-  // have no diffuse light).
-  kD *= 1.0 - metallic;
-
-  // scale light by NdotL
-  float NdotL = max(dot(N, L), 0.0);
-
-  // add to outgoing radiance Lo
-  Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+    Lo += accumulateLight(lights[i].position, lights[i].color, N, V, albedo, metallic, roughness, F0);
+  }
 
 
   // ambient lighting (note that the next IBL tutorial will replace 
@@ -146,5 +155,5 @@ void main()
 
   // gamma correct
   color = pow(color, vec3(1.0 / 2.2));
-  FragColor = vec4(color, 1.0);
+  FragColor = vec4(color, surfaceAlpha);
 }

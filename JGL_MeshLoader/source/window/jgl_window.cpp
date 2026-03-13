@@ -15,14 +15,13 @@ namespace nwindow
 
     mUICtx->init(this);
 
-    mSceneView = std::make_unique<SceneView>();
+    nengine::RenderEngine::CreateInfo engine_info;
+    engine_info.render_target_size = { width, height };
 
-    mPropertyPanel = std::make_unique<Property_Panel>();
+    mEngine = std::make_shared<nengine::RenderEngine>(engine_info);
+    mSceneView = std::make_unique<nui::SceneView>(mEngine);
+    mPropertyPanel = std::make_unique<nui::Property_Panel>();
 
-    mPropertyPanel->set_mesh_load_callback(
-      [this](std::string filepath) { mSceneView->load_mesh(filepath); });
-    mPropertyPanel->set_shader_load_callback(
-        [this](std::string filepath) { mSceneView->load_shader(filepath); });
     return mIsRunning;
   }
 
@@ -37,14 +36,13 @@ namespace nwindow
   {
     Width = width;
     Height = height;
-
-    mSceneView->resize(Width, Height);
     render();
   }
 
   void GLWindow::on_scroll(double delta)
   {
-    mSceneView->on_mouse_wheel(delta);
+    if (mEngine)
+      mEngine->on_mouse_wheel(delta);
   }
 
   void GLWindow::on_key(int key, int scancode, int action, int mods)
@@ -67,10 +65,10 @@ namespace nwindow
     // Initialize UI components
     mUICtx->pre_render();
 
-    // render scene to framebuffer and add it to scene view
-    mSceneView->render();
-
-    mPropertyPanel->render(mSceneView.get());
+    if (mSceneView)
+      mSceneView->render();
+    if (mPropertyPanel)
+      mPropertyPanel->render(mEngine.get());
 
     // Render the UI 
     mUICtx->post_render();
@@ -87,22 +85,26 @@ namespace nwindow
 
     if (glfwGetKey(mWindow, GLFW_KEY_W) == GLFW_PRESS)
     {
-      mSceneView->on_mouse_wheel(-0.4f);
+      if (mEngine)
+        mEngine->on_mouse_wheel(-0.4f);
     }
 
     if (glfwGetKey(mWindow, GLFW_KEY_S) == GLFW_PRESS)
     {
-      mSceneView->on_mouse_wheel(0.4f);
+      if (mEngine)
+        mEngine->on_mouse_wheel(0.4f);
     }
 
     if (glfwGetKey(mWindow, GLFW_KEY_F) == GLFW_PRESS)
     {
-      mSceneView->reset_view();
+      if (mEngine)
+        mEngine->reset_view();
     }
 
     double x, y;
     glfwGetCursorPos(mWindow, &x, &y);
 
-    mSceneView->on_mouse_move(x, y, Input::GetPressedButton(mWindow));
+    if (mEngine)
+      mEngine->on_mouse_move(x, y, nelems::Input::GetPressedButton(mWindow));
   }
 }

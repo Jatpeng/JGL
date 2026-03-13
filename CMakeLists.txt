@@ -19,10 +19,12 @@ set(SRC_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/JGL_MeshLoader/source)
 
 # 主工程源码（排除 3rdparty，避免自动把所有示例和后端都编进来）
 file(GLOB_RECURSE APP_SOURCES
+    CONFIGURE_DEPENDS
     ${SRC_ROOT}/*.cpp
 )
 
 file(GLOB_RECURSE APP_3RDPARTY_SOURCES
+    CONFIGURE_DEPENDS
     ${SRC_ROOT}/3rdparty/*.cpp
 )
 
@@ -66,7 +68,6 @@ target_include_directories(JGL_MeshLoader
         ${CMAKE_CURRENT_SOURCE_DIR}/JGL_MeshLoader/include
         ${CMAKE_CURRENT_SOURCE_DIR}/JGL_MeshLoader/source/3rdparty/imgui-docking
         ${CMAKE_CURRENT_SOURCE_DIR}/JGL_MeshLoader/source/3rdparty/imgui-docking/backends
-        ${CMAKE_CURRENT_SOURCE_DIR}/JGL_MeshLoader/source/3rdparty/plugins/imgui
         ${CMAKE_CURRENT_SOURCE_DIR}/STB_IMAGE
 )
 
@@ -90,6 +91,10 @@ target_link_libraries(JGL_MeshLoader
         glew32s
         assimp
 )
+
+if(WIN32)
+    target_link_libraries(JGL_MeshLoader PRIVATE comdlg32)
+endif()
 
 if(MSVC)
     target_precompile_headers(JGL_MeshLoader PRIVATE

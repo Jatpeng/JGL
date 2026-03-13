@@ -13,10 +13,6 @@ uniform sampler2D roughnessMap;
 uniform sampler2D normalMap;
 
 uniform float ao;
-// lights
-uniform vec3 lightPosition;
-uniform vec3 lightColor;
-
 uniform vec3 camPos;
 
 const float PI = 3.14159265359;

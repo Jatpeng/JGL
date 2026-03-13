@@ -1,186 +1,239 @@
 #include "pch.h"
+
 #include "scene_view.h"
+
 #include "imgui.h"
-#include<filesystem>
+
 namespace nui
 {
-	void SceneView::loadSkyBox()
-	{
-		std::string vsname = FileSystem::getPath("JGL_MeshLoader/shaders/buit_in/skybox_vs.shader");
-		std::string fsname = FileSystem::getPath("JGL_MeshLoader/shaders/buit_in/skybox_fs.shader");
-		mSkyShader = std::make_unique<nshaders::Shader>(vsname.c_str(), fsname.c_str());
-		if (mSkyShader->get_program_id() == 0)
-			std::cout << "[SceneView] Skybox shader failed: " << vsname << " / " << fsname << std::endl;
-		mSkyBox = std::make_shared<nelems::Model>(FileSystem::getPath("JGL_MeshLoader/resource/defaultcube.fbx"));
+  SceneView::SceneView(std::shared_ptr<nengine::RenderEngine> engine)
+    : mEngine(std::move(engine))
+  {
+  }
 
-		vector<std::string> faces
-		{
-			FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/skybox/right.jpg"),
-			FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/skybox/left.jpg"),
-			FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/skybox/top.jpg"),
-			FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/skybox/bottom.jpg"),
-			FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/skybox/front.jpg"),
-			FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/skybox/back.jpg")
-		};
-		mCubemapTexture = TextureSystem::loadCubemap(faces,false);
+  void SceneView::render()
+  {
+    if (!mEngine)
+      return;
 
-	}
-	void SceneView::loadPlane()
-	{
-		std::string vsname = FileSystem::getPath("JGL_MeshLoader/shaders/buit_in/base_vs.shader");
-		std::string fsname = FileSystem::getPath("JGL_MeshLoader/shaders/buit_in/base_fs.shader");
-		mPlaneShader = std::make_unique<nshaders::Shader>(vsname.c_str(), fsname.c_str());
-		mPlane = std::make_shared<nelems::Model>(FileSystem::getPath("JGL_MeshLoader/resource/built_in/plane.fbx"));
-		mPlaneTexture = TextureSystem::getTextureId(FileSystem::getPath("JGL_MeshLoader/resource/built_in/textures/wood.png").c_str());
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->Pos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImGui::GetMainViewport()->Size, ImGuiCond_FirstUseEver);
+    ImGui::Begin("Scene");
 
-	}
-	void SceneView::resize(int32_t width, int32_t height)
-	{
-		mSize.x = width;
-		mSize.y = height;
+    const bool deferred_available = mEngine->is_deferred_available();
+    const bool deferred_requested = mEngine->get_render_mode() == nengine::RenderEngine::RenderMode::Deferred;
+    const bool show_gbuffer_thumbnails =
+      deferred_requested &&
+      deferred_available &&
+      mShowGBufferPreviews;
 
-		mFrameBuffer->create_buffers((int32_t)mSize.x, (int32_t)mSize.y);
-	}
+    if (ImGui::Button("Reset View"))
+      mEngine->reset_view();
 
-	void SceneView::on_mouse_move(double x, double y, nelems::EInputButton button)
-	{
-		mCamera->on_mouse_move(x, y, button);
-	}
+    ImGui::SameLine();
+    bool show_plane = mEngine->is_plane_show();
+    if (ImGui::Checkbox("Plane", &show_plane))
+      mEngine->set_plane_show(show_plane);
 
-	void SceneView::on_mouse_wheel(double delta)
-	{
-		mCamera->on_mouse_wheel(delta);
-	}
+    ImGui::SameLine();
+    bool transparent_model = mEngine->is_model_transparent();
+    if (ImGui::Checkbox("Transparent", &transparent_model))
+      mEngine->set_model_transparent(transparent_model);
 
-	void SceneView::load_mesh(const std::string& filepath)
-	{
-		mModel = std::make_shared<nelems::Model>(filepath);
-		mIsSkin = mModel->GetIsSkinInModel();
-		if(mIsSkin) {
-			//???????
-			load_shader(FileSystem::getPath("JGL_MeshLoader/resource/Anim.xml"));
-			mAnimation = Animation(filepath, mModel.get());
-			mAnimator = Animator(&mAnimation);
-			mMaterial->set_textures(mModel->GetTexturesMap());
-		}
-	}
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(120.0f);
+    int render_mode = deferred_requested ? 1 : 0;
+    if (ImGui::Combo("Mode##SceneToolbar", &render_mode, "Forward\0Deferred\0"))
+    {
+      mEngine->set_render_mode(render_mode == 0
+        ? nengine::RenderEngine::RenderMode::Forward
+        : nengine::RenderEngine::RenderMode::Deferred);
+    }
 
-	void SceneView::load_shader(const std::string& filepath)
-	{
-		if (!mMaterial)
-			mMaterial = std::make_shared<Material>();
-		mMaterial->load(filepath.c_str());
-		std::string shadername = mMaterial->getshaderPath();
-		if (shadername.empty())
-		{
-			std::cout << "load_shader: material did not load, skip creating shader for " << filepath << std::endl;
-			return;
-		}
-		size_t found = shadername.find_last_of('_');
-		if (found != std::string::npos)
-			shadername = shadername.substr(0, found);
-		std::string vsname = shadername + "_vs.shader";
-		std::string fsname = shadername + "_fs.shader";
-		std::filesystem::path pathpath(shadername);
-		m_shadername = pathpath.stem().string();
-		mShader = std::make_unique<nshaders::Shader>(vsname.c_str(), fsname.c_str());
-		if (mShader->get_program_id() == 0)
-			std::cout << "[SceneView] Main shader failed: " << vsname << " / " << fsname << std::endl;
-	}
-	void SceneView::renderSkyBox()
-	{
-		// draw skybox as last
-		glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
-		glDepthMask(GL_FALSE);
-		mSkyShader->use();
-		mCamera->setcam(mSkyShader.get());
-		mSkyShader.get()->set_i1(0, "skybox");
-		mSkyShader.get()->set_texture(GL_TEXTURE0, GL_TEXTURE_CUBE_MAP, mCubemapTexture);
+    if (mEngine->get_render_mode() == nengine::RenderEngine::RenderMode::Deferred)
+    {
+      ImGui::SameLine();
+      ImGui::SetNextItemWidth(140.0f);
+      int debug_view = static_cast<int>(mEngine->get_debug_view());
+      if (ImGui::Combo("Debug##SceneToolbar", &debug_view,
+                       "Final\0Position\0Normal\0Albedo\0Roughness\0Metallic\0"))
+      {
+        mEngine->set_debug_view(static_cast<nengine::RenderEngine::DebugView>(debug_view));
+      }
 
-		mSkyBox->Draw();
-		glDepthMask(GL_TRUE);
-		glDepthFunc(GL_LESS); // set depth function back to default
-	}
+      ImGui::SameLine();
+      ImGui::Checkbox("G-Buffer", &mShowGBufferPreviews);
+    }
 
-	void SceneView::renderPlane()
-	{
-		mPlaneShader->use();
-		mCamera->update(mPlaneShader.get());
-		mPlaneShader.get()->set_i1(GL_TEXTURE0, "baseMap");
-		mPlaneShader.get()->set_texture(GL_TEXTURE0, GL_TEXTURE_2D, mPlaneTexture);
-		mPlane->Draw();
-	}
+    ImGui::TextDisabled("RMB Orbit | MMB Pan | W/S Zoom | F Reset");
 
-	void SceneView::render()
-	{
-		mFrameBuffer->bind();
+    const glm::ivec2 target_size = mEngine->get_render_target_size();
+    const char* active_mode = deferred_requested && deferred_available ? "Deferred" : "Forward";
+    ImGui::TextDisabled("Target %d x %d | Active %s", target_size.x, target_size.y, active_mode);
 
-		if (!mModel)
-			load_mesh(FileSystem::getPath("JGL_MeshLoader/resource/cube.fbx"));
+    if (deferred_requested && !deferred_available)
+    {
+      ImGui::TextColored(
+        ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+        "Current material is missing deferred inputs. Rendering falls back to forward mode.");
+    }
 
-		if (mShader && mShader->get_program_id() != 0)
-		{
-			mShader->use();
-			mCamera->update(mShader.get());
-		}
+    ImGui::Separator();
 
-		float currentFrame = glfwGetTime();
-		mdeltaTime = currentFrame - mlastFrame;
-		mlastFrame = currentFrame;
-		mAnimator.UpdateAnimation(mdeltaTime);
-		//????????????
-		if (mIsSkin && mShader && mShader->get_program_id() != 0) {
-			auto transforms = mAnimator.GetFinalBoneMatrices();
-			for (size_t i = 0; i < transforms.size(); ++i)
-				mShader->set_mat4(transforms[i], "finalBonesMatrices[" + std::to_string(i) + "]");
-		}
+    const float thumbnails_height = show_gbuffer_thumbnails ? 152.0f : 0.0f;
+    const float spacing = show_gbuffer_thumbnails ? ImGui::GetStyle().ItemSpacing.y : 0.0f;
 
-		if (mModel && mShader && mShader->get_program_id() != 0)
-		{
-			mShader->set_f1((float)glfwGetTime(), "time");
-			if (m_shadername == "fur" && mMaterial && mMaterial->isMultyPass()) {
-				int passcount = int(mMaterial->getFloatMap()["Pass"]);
-				for (int i = 0; i < passcount; i += 1) {
-					mShader->set_f1(i, "PassIndex");
-					mMaterial->update_shader_params(mShader.get());
-					mModel->Draw();
-				}
-			}
-			else
-			{
-				if (mMaterial)
-					mMaterial->update_shader_params(mShader.get());
-				mModel->Draw();
-			}
+    const ImVec2 viewport_panel_size = ImGui::GetContentRegionAvail();
+    const float main_view_height = show_gbuffer_thumbnails
+      ? (viewport_panel_size.y - thumbnails_height - spacing)
+      : viewport_panel_size.y;
+    const float safe_view_width = viewport_panel_size.x > 1.0f ? viewport_panel_size.x : 1.0f;
+    const float safe_view_height = main_view_height > 1.0f ? main_view_height : 1.0f;
 
-		}
-		// ?? Scene ??????γ?????????????????????? DockSpace ????
-		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->Pos, ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowSize(ImGui::GetMainViewport()->Size, ImGuiCond_FirstUseEver);
-		ImGui::Begin("Scene");
-		ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
-		mSize = { viewportPanelSize.x, viewportPanelSize.y };
-		if (mSize.x > 0 && mSize.y > 0)
-			mCamera->set_aspect(mSize.x / mSize.y);
-		if (m_showPlane && mPlaneShader && mPlaneShader->get_program_id() != 0 && mPlane)
-			renderPlane();
-		if (mSkyShader && mSkyShader->get_program_id() != 0 && mSkyBox)
-			renderSkyBox();
+    const int target_width = static_cast<int>(safe_view_width);
+    const int target_height = static_cast<int>(safe_view_height);
+    const glm::ivec2 current_size = mEngine->get_render_target_size();
+    // Keep the off-screen render targets in lock-step with the ImGui viewport.
+    if (target_width != current_size.x || target_height != current_size.y)
+      mEngine->resize(target_width, target_height);
 
-		mFrameBuffer->unbind();
+    mEngine->render();
 
-		ImVec2 displaySize(mSize.x, mSize.y);
-		if (displaySize.x < 1.0f) displaySize.x = 1.0f;
-		if (displaySize.y < 1.0f) displaySize.y = 1.0f;
-		ImVec2 p0 = ImGui::GetCursorScreenPos();
-		ImVec2 p1(p0.x + displaySize.x, p0.y + displaySize.y);
-		// 先画一块明显绿色，确认 Scene 窗口和绘制区域可见
-		ImGui::GetWindowDrawList()->AddRectFilled(p0, p1, IM_COL32(0, 180, 0, 255));
-		uint32_t texId = mFrameBuffer->get_texture();
-		if (texId != 0)
-			ImGui::Image((void*)(intptr_t)texId, displaySize, ImVec2(0, 1), ImVec2(1, 0));
-		else
-			ImGui::TextColored(ImVec4(1,1,0,1), "FBO texture invalid");
-		ImGui::End();
-	}
+    ImVec2 display_size(safe_view_width, safe_view_height);
+    ImVec2 p0 = ImGui::GetCursorScreenPos();
+    ImVec2 p1(p0.x + display_size.x, p0.y + display_size.y);
+    // Use a neutral backdrop so alpha in the viewport texture does not tint the scene.
+    ImGui::GetWindowDrawList()->AddRectFilled(p0, p1, IM_COL32(24, 24, 24, 255));
+
+    const uint32_t tex_id = mEngine->get_output_texture();
+    if (tex_id != 0)
+      ImGui::Image((void*)(intptr_t)tex_id, display_size, ImVec2(0, 1), ImVec2(1, 0));
+    else
+      ImGui::TextColored(ImVec4(1, 1, 0, 1), "FBO texture invalid");
+
+    ImGui::GetWindowDrawList()->AddRect(
+      ImGui::GetItemRectMin(),
+      ImGui::GetItemRectMax(),
+      IM_COL32(70, 70, 70, 255),
+      0.0f,
+      0,
+      1.0f);
+
+    if (show_gbuffer_thumbnails)
+    {
+      ImGui::Dummy(ImVec2(0.0f, 6.0f));
+      ImGui::Separator();
+      ImGui::TextUnformatted("G-Buffer Inspect");
+
+      const float available_width = ImGui::GetContentRegionAvail().x;
+      const float thumb_spacing = ImGui::GetStyle().ItemSpacing.x;
+      const bool stack_thumbnails = available_width < 520.0f;
+      const float thumb_width = stack_thumbnails
+        ? available_width
+        : (available_width - thumb_spacing * 2.0f) / 3.0f;
+      const ImVec2 thumb_size(thumb_width > 1.0f ? thumb_width : 1.0f, 80.0f);
+
+      auto draw_debug_button = [&](const char* label, nengine::RenderEngine::DebugView view)
+      {
+        const bool active = mEngine->get_debug_view() == view;
+        if (active)
+        {
+          ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.55f, 0.20f, 1.0f));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.62f, 0.24f, 1.0f));
+          ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.72f, 0.48f, 0.18f, 1.0f));
+        }
+
+        if (ImGui::SmallButton(label))
+          mEngine->set_debug_view(view);
+
+        if (active)
+          ImGui::PopStyleColor(3);
+      };
+
+      auto draw_thumb = [&](const char* label,
+                            const char* channels,
+                            const char* tooltip,
+                            uint32_t texture_id,
+                            nengine::RenderEngine::DebugView primary_view,
+                            const char* secondary_label = nullptr,
+                            nengine::RenderEngine::DebugView secondary_view = nengine::RenderEngine::DebugView::Final)
+      {
+        const auto current_debug_view = mEngine->get_debug_view();
+        const bool selected = current_debug_view == primary_view ||
+          (secondary_label != nullptr && current_debug_view == secondary_view);
+
+        ImGui::BeginGroup();
+        ImGui::TextUnformatted(label);
+        ImGui::TextDisabled("%s", channels);
+
+        if (texture_id != 0)
+          ImGui::Image((void*)(intptr_t)texture_id, thumb_size, ImVec2(0, 1), ImVec2(1, 0));
+        else
+          ImGui::Dummy(thumb_size);
+
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+          mEngine->set_debug_view(primary_view);
+
+        if (ImGui::IsItemHovered())
+        {
+          ImGui::BeginTooltip();
+          ImGui::TextUnformatted(tooltip);
+          ImGui::EndTooltip();
+        }
+
+        const ImVec2 thumb_min = ImGui::GetItemRectMin();
+        const ImVec2 thumb_max = ImGui::GetItemRectMax();
+        const ImU32 border_color = selected
+          ? IM_COL32(236, 166, 51, 255)
+          : IM_COL32(80, 80, 80, 255);
+        ImGui::GetWindowDrawList()->AddRect(
+          thumb_min,
+          thumb_max,
+          border_color,
+          0.0f,
+          0,
+          selected ? 2.0f : 1.0f);
+
+        draw_debug_button(label, primary_view);
+        if (secondary_label != nullptr)
+        {
+          ImGui::SameLine();
+          draw_debug_button(secondary_label, secondary_view);
+        }
+
+        ImGui::EndGroup();
+      };
+
+      draw_thumb(
+        "Position",
+        "rgb = world position",
+        "Click preview to inspect world-space position.",
+        mEngine->get_gbuffer_position_texture(),
+        nengine::RenderEngine::DebugView::Position);
+      if (!stack_thumbnails)
+        ImGui::SameLine();
+
+      draw_thumb(
+        "Normal",
+        "rgb = normal, a = roughness",
+        "Click preview for normal view. Use Roughness button to inspect alpha.",
+        mEngine->get_gbuffer_normal_roughness_texture(),
+        nengine::RenderEngine::DebugView::Normal,
+        "Roughness",
+        nengine::RenderEngine::DebugView::Roughness);
+      if (!stack_thumbnails)
+        ImGui::SameLine();
+
+      draw_thumb(
+        "Albedo",
+        "rgb = albedo, a = metallic",
+        "Click preview for albedo view. Use Metallic button to inspect alpha.",
+        mEngine->get_gbuffer_albedo_metallic_texture(),
+        nengine::RenderEngine::DebugView::Albedo,
+        "Metallic",
+        nengine::RenderEngine::DebugView::Metallic);
+    }
+
+    ImGui::End();
+  }
 }

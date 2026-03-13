@@ -44,6 +44,8 @@ namespace nrender
 
     virtual uint32_t get_texture() = 0;
 
+    virtual uint32_t get_fbo() const = 0;
+
   protected:
     uint32_t mFBO = 0;
     uint32_t mTexId = 0;

@@ -125,9 +125,10 @@ namespace nrender
   {
     if (mFBO)
     {
-      glDeleteFramebuffers(GL_FRAMEBUFFER, &mFBO);
+      glDeleteFramebuffers(1, &mFBO);
       glDeleteTextures(1, &mTexId);
       glDeleteTextures(1, &mDepthId);
+      mFBO = 0;
       mTexId = 0;
       mDepthId = 0;
     }
@@ -150,6 +151,11 @@ namespace nrender
   uint32_t OpenGL_FrameBuffer::get_texture()
   {
     return mTexId;
+  }
+
+  uint32_t OpenGL_FrameBuffer::get_fbo() const
+  {
+    return mFBO;
   }
 
 

@@ -37,5 +37,7 @@ namespace nrender
     void unbind() override;
     
     uint32_t get_texture() override;
+
+    uint32_t get_fbo() const override;
   };
 }

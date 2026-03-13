@@ -1,23 +1,11 @@
 #pragma once
 
-#include "elems/mesh.h"
-#include "elems/camera.h"
-#include "elems/light.h"
-#include "shader/shader_util.h"
-
+#include "engine/render_engine.h"
 #include "render/ui_context.h"
 #include "render/opengl_context.h"
-#include "render/opengl_buffer_manager.h"
-
 #include "window/window.h"
-
 #include "ui/property_panel.h"
 #include "ui/scene_view.h"
-
-using namespace nui;
-using namespace nelems;
-using namespace nrender;
-using namespace nshaders;
 
 namespace nwindow
 {
@@ -28,8 +16,8 @@ namespace nwindow
     GLWindow() :
       mIsRunning(true), mWindow(nullptr)
     {
-      mUICtx = std::make_unique<UIContext>();
-      mRenderCtx = std::make_unique<OpenGL_Context>();
+      mUICtx = std::make_unique<nrender::UIContext>();
+      mRenderCtx = std::make_unique<nrender::OpenGL_Context>();
     }
 
     ~GLWindow();
@@ -57,23 +45,18 @@ namespace nwindow
 
     bool is_running() { return mIsRunning; }
 
+    nengine::RenderEngine* get_engine() const { return mEngine.get(); }
 
   private:
-
     GLFWwindow* mWindow;
 
-    // Render contexts
-    std::unique_ptr<UIContext> mUICtx;
-
-    std::unique_ptr<OpenGL_Context> mRenderCtx;
-
-    // UI components
-    std::unique_ptr<Property_Panel> mPropertyPanel;
-
-    std::unique_ptr<SceneView> mSceneView;
+    std::unique_ptr<nrender::UIContext> mUICtx;
+    std::unique_ptr<nrender::OpenGL_Context> mRenderCtx;
+    std::shared_ptr<nengine::RenderEngine> mEngine;
+    std::unique_ptr<nui::Property_Panel> mPropertyPanel;
+    std::unique_ptr<nui::SceneView> mSceneView;
 
     bool mIsRunning;
-
   };
 }
 
