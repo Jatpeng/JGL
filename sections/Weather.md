@@ -4,7 +4,7 @@
 
 项目中已包含天气/水面相关资源与 Shader 雏形，重点在于“基于法线扰动的流动水面效果”：
 
-- 贴图资源：`resource/textures/weather/`
+- 贴图资源：`Assets/textures/weather/`
   - `base.png`
   - `water_bump_map.png`
   - `droplet_tex.png`
@@ -31,4 +31,4 @@
 - 增加风场控制，实现分区域流向。
 - 将天气参数（降雨强度、流速、扰动强度）暴露到 ImGui 面板。
 
-![天气效果预览](../Images/Weather/image-20230521172004800.png)
+![天气效果预览](./Images/Weather/image-20230521172004800.png)

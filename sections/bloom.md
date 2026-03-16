@@ -4,7 +4,7 @@
 
 项目已提供 Bloom 材质配置与 Shader 文件：
 
-- 配置：`resource/Bloom.xml`
+- 配置：`Assets/Bloom.xml`
 - Shader：`shaders/bloom_vs.shader` + `shaders/bloom_fs.shader`
 
 目前 `bloom_fs.shader` 仍是占位实现（输出固定红色），尚未完成完整 Bloom 后处理链路。

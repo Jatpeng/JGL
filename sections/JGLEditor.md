@@ -41,5 +41,5 @@
 - 滚轮 / `W/S`：缩放视距（`on_mouse_wheel`）。
 - `F`：重置相机视角（`reset_view`）。
 
-![编辑器界面](../Images/JGLEditor/image-20230521165936149.png)
-![材质参数面板](../Images/JGLEditor/image-20230521164933037.png)
+![编辑器界面](./Images/JGLEditor/image-20230521165936149.png)
+![材质参数面板](./Images/JGLEditor/image-20230521164933037.png)

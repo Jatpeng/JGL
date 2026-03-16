@@ -4,7 +4,7 @@
 
 项目默认材质为 PBR：
 
-- 配置：`resource/PBR.xml`
+- 配置：`Assets/PBR.xml`
 - Shader：`shaders/pbr_vs.shader` + `shaders/pbr_fs.shader`
 - 默认贴图：
   - `albedo.png`
@@ -30,4 +30,4 @@
 - 对金属材质优先保证 `metallic/roughness` 贴图质量。
 - 若场景偏暗，可先调高 `lightColor`，再细调粗糙度。
 
-![PBR 效果预览](../Images/PBR材质/1692605025279.jpg)
+![PBR 效果预览](./Images/PBR材质/1692605025279.jpg)

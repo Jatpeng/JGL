@@ -4,7 +4,7 @@
 
 当前毛发方案基于经典壳层（shell）多 Pass 渲染：
 
-- 配置文件：`resource/Fur.xml`
+- 配置文件：`Assets/Fur.xml`
 - Shader：`shaders/fur_vs.shader` + `shaders/fur_fs.shader`
 - 关键参数：
   - `Pass`：壳层次数（层数越高越蓬松，但开销更大）
@@ -26,6 +26,6 @@
 2. 点击 `OpenMaterial...` 选择 `Fur.xml`。
 3. 在 Material 参数区调节 `Pass/FurLength/vGravity`，观察毛发体积变化。
 
-![Fur 效果预览](../Images/Fur/1692618678620.png)
+![Fur 效果预览](./Images/Fur/1692618678620.png)
 
 参考：<http://sorumi.xyz/posts/unity-fur-shader/>

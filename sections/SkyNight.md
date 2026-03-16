@@ -4,7 +4,7 @@
 
 星空效果使用独立材质配置与片元着色器：
 
-- 配置：`resource/NightSky.xml`
+- 配置：`Assets/NightSky.xml`
 - Shader：`shaders/nightsky_vs.shader` + `shaders/nightsky_fs.shader`
 
 `nightsky_fs.shader` 采用分形迭代的体积感写法，按时间参数推进采样，形成动态星云/星空流动效果。
@@ -22,4 +22,4 @@
 
 > 说明：`NightSky.xml` 当前未暴露额外可调参数，后续可加入星空亮度、色调和迭代步数控制。
 
-![星空效果预览](../Images/SkyNight/1692618848257.png)
+![星空效果预览](./Images/SkyNight/1692618848257.png)

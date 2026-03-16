@@ -1,15 +1,15 @@
-# JGL Engine
+# JGL_Engine
 
-![JGL Engine Hero](./Images/README/jgl-engine-hero.png)
+![JGL_Engine Hero](./Images/README/jgl-engine-hero.png)
 
-JGL Engine 是一个基于 OpenGL 的实时渲染引擎原型。
+JGL_Engine 是一个基于 OpenGL 的实时渲染引擎原型。
 它正在从早期的渲染实验项目，逐步演进为具备运行时内核、资源系统、编辑器外壳，以及 Forward / Deferred 双渲染管线能力的轻量引擎。
 
-> 当前封面展示的是 JGL Engine 的编辑器界面、延迟渲染主视口，以及 G-Buffer 调试预览。
+> 当前封面展示的是 JGL_Engine 的编辑器界面、延迟渲染主视口，以及 G-Buffer 调试预览。
 
 ## 项目概述
 
-当前 JGL Engine 主要聚焦在渲染引擎核心层的建设：
+当前 JGL_Engine 主要聚焦在渲染引擎核心层的建设：
 
 - 可复用的渲染运行时
 - 基于 OpenGL 的 Forward / Deferred 双渲染路径
@@ -39,17 +39,17 @@ JGL Engine 是一个基于 OpenGL 的实时渲染引擎原型。
 
 ## 架构分层
 
-- `JGL_MeshLoader/source/engine`
+- `JGL_Engine/source/engine`
   - 渲染运行时、资源管理器以及对外可复用接口
-- `JGL_MeshLoader/source/render`
+- `JGL_Engine/source/render`
   - OpenGL 上下文、Framebuffer、Deferred G-Buffer 与底层缓冲管理
-- `JGL_MeshLoader/source/elems`
+- `JGL_Engine/source/elems`
   - 相机、模型、材质、动画、网格与场景元素数据
-- `JGL_MeshLoader/source/ui`
+- `JGL_Engine/source/ui`
   - ImGui 编辑器外壳、场景视口与属性面板
-- `JGL_MeshLoader/shaders`
+- `JGL_Engine/shaders`
   - Forward、Deferred、内置效果与后处理 Shader
-- `JGL_MeshLoader/resource`
+- `Assets`
   - 默认资源、材质定义、纹理与内置资产
 
 ## 文档与图片
@@ -93,19 +93,19 @@ cmake --build build --config Debug
 生成完成后，运行：
 
 ```powershell
-.\build\bin\Debug\JGL_MeshLoader.exe
+.\build\bin\Debug\JGL_Engine.exe
 ```
 
 如果需要 `Release` 版本，可改为：
 
 ```powershell
 cmake --build build --config Release
-.\build\bin\Release\JGL_MeshLoader.exe
+.\build\bin\Release\JGL_Engine.exe
 ```
 
 ## 项目定位
 
-当前 JGL Engine 更适合被理解为：
+当前 JGL_Engine 更适合被理解为：
 
 - 一个持续演进中的渲染引擎核心
 - 一个用于渲染调试、效果验证和运行时开发的桌面编辑器外壳
@@ -115,7 +115,7 @@ cmake --build build --config Release
 
 ## TODO List
 
-在成为更完整的引擎平台之前，JGL Engine 仍缺少以下能力：
+在成为更完整的引擎平台之前，JGL_Engine 仍缺少以下能力：
 
 - 场景图或基于 ECS 的场景数据模型
 - 面向外部宿主程序的稳定运行时 API

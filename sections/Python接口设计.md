@@ -241,8 +241,8 @@ scene = engine.create_scene("demo")
 engine.set_active_scene(scene)
 
 cube = scene.create_mesh("cube")
-cube.set_model("JGL_MeshLoader/resource/cube.fbx")
-cube.set_material("JGL_MeshLoader/resource/PBR.xml")
+cube.set_model("Assets/cube.fbx")
+cube.set_material("Assets/PBR.xml")
 cube.transform.position = (0.0, 0.0, 0.0)
 cube.transform.scale = (1.0, 1.0, 1.0)
 
@@ -359,7 +359,7 @@ public:
 
 建议新增目录：
 
-- `JGL_MeshLoader/source/python/`
+- `JGL_Engine/source/python/`
 
 建议文件：
 
@@ -387,7 +387,7 @@ PYBIND11_MODULE(pyjgl, m) {
 建议改为：
 
 - `jgl_core` 静态库
-- `JGL_MeshLoader` 可执行程序
+- `JGL_Engine` 可执行程序
 - `pyjgl` Python 模块
 
 建议新增配置：
@@ -406,8 +406,8 @@ option(JGL_ENABLE_PYTHON "Build Python bindings" ON)
 
 ```cmake
 add_library(jgl_core ...)
-add_executable(JGL_MeshLoader ...)
-target_link_libraries(JGL_MeshLoader PRIVATE jgl_core ...)
+add_executable(JGL_Engine ...)
+target_link_libraries(JGL_Engine PRIVATE jgl_core ...)
 
 if(JGL_ENABLE_PYTHON)
     pybind11_add_module(pyjgl ...)
