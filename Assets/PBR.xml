@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Material
+Name ="PBR"
+multipass ="false"
+shader= "JGL_MeshLoader/shaders/pbr_fs.shader"
+>
+  <Param
+Name="baseMap"
+Type ="Texture"
+Default ="Assets/textures/PBR/albedo.png"
+/>
+  <Param
+Name="metallicMap"
+Type ="Texture"
+Default ="Assets/textures/PBR/metallic.png"
+/>
+  <Param
+Name="roughnessMap"
+Type ="Texture"
+Default ="Assets/textures/PBR/roughness.png"
+/>
+  <Param
+Name="normalMap"
+Type ="Texture"
+Default ="Assets/textures/PBR/normal.png"
+/>
+  <Param
+Name ="color"
+Type ="float3"
+Default ="1.0,1.0,1.0"
+/>
+</Material>
