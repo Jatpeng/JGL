@@ -37,7 +37,7 @@ namespace nelems
 
         auto& GetBoneInfoMap() { return m_BoneInfoMap; }
         int& GetBoneCount() { return m_BoneCounter; }
-        map<string, pair<unsigned int, string>> GetTexturesMap() { return m_Textures_map; }
+        const map<string, pair<unsigned int, string>>& GetTexturesMap() { return m_Textures_map; }
     private:
         string m_modelPath;
         map<string, pair<unsigned int, string>> m_Textures_map;

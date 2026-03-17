@@ -177,7 +177,7 @@ Material::~Material()
 	mEngineFloat3_map.clear();
 }
 
-void Material::set_textures(map<string, pair<unsigned int, string>> textures)
+void Material::set_textures(const map<string, pair<unsigned int, string>>& textures)
 {
 	mTexture_map = textures;
 }

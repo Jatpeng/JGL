@@ -38,7 +38,7 @@ class Material {
 public:
 	Material();
     ~Material();
-	void set_textures(map<string, pair<unsigned int, string>> textures);
+	void set_textures(const map<string, pair<unsigned int, string>>& textures);
 	void load(const char* materialPath, const MaterialLoadContext* context = nullptr);
 	void print() {
 		cout << "Name: " << name << endl;
