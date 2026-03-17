@@ -3,6 +3,7 @@
 #include "ui/property_panel.h"
 
 #include "imgui_internal.h"
+#include "misc/cpp/imgui_stdlib.h"
 
 #include <array>
 #include <filesystem>
@@ -212,10 +213,9 @@ namespace nui
 
     if (selected_object && ImGui::CollapsingHeader("Selected Object", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      std::array<char, 256> name_buffer = {};
-      strncpy_s(name_buffer.data(), name_buffer.size(), selected_object->name().c_str(), _TRUNCATE);
-      if (ImGui::InputText("Name", name_buffer.data(), name_buffer.size()))
-        selected_object->set_name(name_buffer.data());
+      std::string name = selected_object->name();
+      if (ImGui::InputText("Name", &name))
+        selected_object->set_name(name);
 
       ImGui::TextDisabled("Id %llu | Type %s",
                           static_cast<unsigned long long>(selected_object->id()),

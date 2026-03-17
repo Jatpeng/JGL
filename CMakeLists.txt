@@ -53,6 +53,7 @@ set(IMGUI_CORE_SOURCES
     ${SRC_ROOT}/3rdparty/imgui-docking/imgui_widgets.cpp
     ${SRC_ROOT}/3rdparty/imgui-docking/imgui_tables.cpp
     ${SRC_ROOT}/3rdparty/imgui-docking/imgui_demo.cpp
+    ${SRC_ROOT}/3rdparty/imgui-docking/misc/cpp/imgui_stdlib.cpp
 )
 
 set(IMGUI_BACKEND_SOURCES
