@@ -25,6 +25,11 @@ Type ="Texture"
 Default ="Assets/textures/PBR/normal.png"
 />
   <Param
+Name="aoMap"
+Type ="Texture"
+Default ="Assets/textures/PBR/ao.png"
+/>
+  <Param
 Name ="color"
 Type ="float3"
 Default ="1.0,1.0,1.0"
