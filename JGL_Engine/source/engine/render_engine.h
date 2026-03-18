@@ -6,6 +6,8 @@
 #include "render/deferred_gbuffer.h"
 #include "render/opengl_buffer_manager.h"
 #include "shader/shader_util.h"
+#include "render/post_process/post_process_stack.h"
+#include "render/ibl/ibl_pipeline.h"
 
 namespace nrender
 {
@@ -40,9 +42,12 @@ namespace nengine
       bool load_default_plane = true;
       std::shared_ptr<IResourceManager> resource_manager;
       std::shared_ptr<nrender::RenderDocCapture> renderdoc_capture;
+      CreateInfo() {}
     };
 
-    explicit RenderEngine(const CreateInfo& create_info = CreateInfo());
+
+    explicit RenderEngine(const CreateInfo& create_info = CreateInfo{});
+
     ~RenderEngine();
 
     void resize(int32_t width, int32_t height);
