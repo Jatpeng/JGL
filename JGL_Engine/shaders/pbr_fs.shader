@@ -11,8 +11,8 @@ uniform sampler2D baseMap;
 uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D normalMap;
-uniform sampler2D aoMap;
 
+uniform float ao = 1.0;
 uniform vec3 camPos;
 uniform float opacity = 1.0;
 
@@ -125,7 +125,6 @@ void main()
   vec3 albedo = pow(albedoSample.rgb, vec3(2.2)) * color;
   float metallic = texture(metallicMap, TexCoords).r;
   float roughness = texture(roughnessMap, TexCoords).r;
-  float ao = texture(aoMap, TexCoords).r;
   float surfaceAlpha = albedoSample.a * opacity;
 
   // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 

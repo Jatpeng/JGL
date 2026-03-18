@@ -9,9 +9,7 @@
 #include <filesystem>
 #include <optional>
 
-#ifdef _WIN32
 #include <commdlg.h>
-#endif
 
 namespace nui
 {
@@ -19,7 +17,6 @@ namespace nui
   {
     std::wstring wide_from_narrow(const std::string& narrow)
     {
-#ifdef _WIN32
       if (narrow.empty())
         return {};
 
@@ -30,14 +27,10 @@ namespace nui
       std::vector<wchar_t> buffer(static_cast<size_t>(size), L'\0');
       MultiByteToWideChar(CP_ACP, 0, narrow.c_str(), -1, buffer.data(), size);
       return std::wstring(buffer.data());
-#else
-      return std::wstring(narrow.begin(), narrow.end());
-#endif
     }
 
     std::string narrow_from_wide(const std::wstring& wide)
     {
-#ifdef _WIN32
       if (wide.empty())
         return {};
 
@@ -48,14 +41,10 @@ namespace nui
       std::vector<char> buffer(static_cast<size_t>(size), '\0');
       WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, buffer.data(), size, nullptr, nullptr);
       return std::string(buffer.data());
-#else
-      return std::string(wide.begin(), wide.end());
-#endif
     }
 
     std::optional<std::string> open_native_file_dialog(const wchar_t* title, const wchar_t* filter)
     {
-#ifdef _WIN32
       std::array<wchar_t, 4096> filename = {};
       const std::wstring initial_dir = wide_from_narrow(FileSystem::getPath(""));
       OPENFILENAMEW dialog = {};
@@ -73,10 +62,6 @@ namespace nui
         return std::nullopt;
 
       return narrow_from_wide(filename.data());
-#else
-      std::cout << "open_native_file_dialog not implemented on this platform" << std::endl;
-      return std::nullopt;
-#endif
     }
 
     void begin_disabled(bool disabled)

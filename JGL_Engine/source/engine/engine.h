@@ -26,12 +26,9 @@ namespace nengine
       std::string title = "JGL_Engine";
       bool create_default_scene = true;
       bool show_plane = false;
-      CreateInfo() {}
     };
 
-
-    explicit Engine(const CreateInfo& create_info = CreateInfo{});
-
+    explicit Engine(const CreateInfo& create_info = {});
     ~Engine();
 
     bool init();

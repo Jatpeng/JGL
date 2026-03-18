@@ -2,7 +2,6 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
-#include <algorithm>
 
 #include "input.h"
 #include "element.h"
@@ -126,11 +125,11 @@ namespace nelems
 			}	
 			else if (button == EInputButton::Middle)
 			{
-				float panSpeed = std::max(mDistance, 0.1f) * 0.003f;
-				glm::vec2 delta = (pos2d - mCurrentPos2d) * panSpeed;
+				// TODO: Adjust pan speed for distance
+				glm::vec2 delta = (pos2d - mCurrentPos2d) * 0.003f;
 
-				mFocus += -get_right() * delta.x;
-				mFocus += get_up() * delta.y;
+				mFocus += -get_right() * delta.x * mDistance;
+				mFocus += get_up() * delta.y * mDistance;
 
 				update_view_matrix();
 			}
