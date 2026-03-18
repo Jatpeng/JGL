@@ -29,7 +29,9 @@ namespace nengine
       CreateInfo() {}
     };
 
+
     explicit Engine(const CreateInfo& create_info = CreateInfo{});
+
     ~Engine();
 
     bool init();
