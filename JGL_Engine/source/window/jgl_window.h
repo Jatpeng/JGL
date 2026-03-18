@@ -28,7 +28,7 @@ namespace nwindow
       int width,
       int height,
       const std::string& title,
-      const nengine::RenderEngine::CreateInfo& engine_info = {});
+      const nengine::RenderEngine::CreateInfo& engine_info = nengine::RenderEngine::CreateInfo());
 
     void render();
 

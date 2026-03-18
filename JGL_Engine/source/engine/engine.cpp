@@ -94,13 +94,13 @@ namespace nengine
     auto scene = create_scene("default");
 
     auto mesh = scene->create_mesh("cube");
-    mesh->set_model("Assets/cube.fbx");
-    mesh->set_material("Assets/PBR.xml");
+    mesh->get_component<MeshComponent>()->set_model("Assets/cube.fbx");
+    mesh->get_component<MeshComponent>()->set_material("Assets/PBR.xml");
 
     auto light = scene->create_light("main_light");
-    light->transform().position = glm::vec3(1.5f, 3.5f, 3.0f);
-    light->set_color(glm::vec3(1.0f, 1.0f, 1.0f));
-    light->set_strength(100.0f);
+    light->get_component<TransformComponent>()->position = glm::vec3(1.5f, 3.5f, 3.0f);
+    light->get_component<LightComponent>()->set_color(glm::vec3(1.0f, 1.0f, 1.0f));
+    light->get_component<LightComponent>()->set_strength(100.0f);
 
     set_active_scene(scene);
   }

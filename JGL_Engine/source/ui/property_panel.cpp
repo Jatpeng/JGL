@@ -9,59 +9,68 @@
 #include <filesystem>
 #include <optional>
 
+#ifdef _WIN32
 #include <commdlg.h>
+#endif
 
 namespace nui
 {
   namespace
   {
+#ifdef _WIN32
     std::wstring wide_from_narrow(const std::string& narrow)
     {
       if (narrow.empty())
-        return {};
+        return std::wstring();
 
       const int size = MultiByteToWideChar(CP_ACP, 0, narrow.c_str(), -1, nullptr, 0);
-      if (size <= 1)
-        return {};
-
-      std::vector<wchar_t> buffer(static_cast<size_t>(size), L'\0');
-      MultiByteToWideChar(CP_ACP, 0, narrow.c_str(), -1, buffer.data(), size);
-      return std::wstring(buffer.data());
+      std::wstring result(size, 0);
+      MultiByteToWideChar(CP_ACP, 0, narrow.c_str(), -1, result.data(), size);
+      return result;
     }
 
     std::string narrow_from_wide(const std::wstring& wide)
     {
       if (wide.empty())
-        return {};
+        return std::string();
 
       const int size = WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
-      if (size <= 1)
-        return {};
-
-      std::vector<char> buffer(static_cast<size_t>(size), '\0');
-      WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, buffer.data(), size, nullptr, nullptr);
-      return std::string(buffer.data());
+      std::string result(size, 0);
+      WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, result.data(), size, nullptr, nullptr);
+      return result;
     }
 
     std::optional<std::string> open_native_file_dialog(const wchar_t* title, const wchar_t* filter)
     {
-      std::array<wchar_t, 4096> filename = {};
-      const std::wstring initial_dir = wide_from_narrow(FileSystem::getPath(""));
-      OPENFILENAMEW dialog = {};
-      dialog.lStructSize = sizeof(dialog);
+      OPENFILENAMEW dialog;
+      ZeroMemory(&dialog, sizeof(dialog));
       dialog.hwndOwner = GetActiveWindow();
+      dialog.lStructSize = sizeof(dialog);
+      std::array<wchar_t, MAX_PATH> filename = { 0 };
       dialog.lpstrFile = filename.data();
-      dialog.nMaxFile = static_cast<DWORD>(filename.size());
-      dialog.lpstrInitialDir = initial_dir.empty() ? nullptr : initial_dir.c_str();
+      dialog.nMaxFile = MAX_PATH;
       dialog.lpstrFilter = filter;
-      dialog.nFilterIndex = 1;
       dialog.lpstrTitle = title;
       dialog.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
-      if (!GetOpenFileNameW(&dialog))
-        return std::nullopt;
+      if (GetOpenFileNameW(&dialog) == 0)
+        return {};
 
       return narrow_from_wide(filename.data());
+    }
+#else
+    std::optional<std::string> open_native_file_dialog(const wchar_t* title, const wchar_t* filter)
+    {
+      return {};
+    }
+#endif
+
+    std::string file_label(const std::string& path)
+    {
+      if (path.empty())
+        return std::string("<empty>");
+
+      return std::filesystem::path(path).filename().string();
     }
 
     void begin_disabled(bool disabled)
@@ -82,29 +91,21 @@ namespace nui
       ImGui::PopItemFlag();
     }
 
-    std::string file_label(const std::string& path)
-    {
-      if (path.empty())
-        return std::string("<empty>");
-
-      return std::filesystem::path(path).filename().string();
-    }
-
-    std::shared_ptr<nengine::SceneObject> resolve_selected_object(
+    std::shared_ptr<nengine::Entity> resolve_selected_entity(
       const std::shared_ptr<nengine::Scene>& scene,
       uint64_t* selected_id)
     {
       if (!scene || !selected_id)
         return nullptr;
 
-      auto selected = scene->find_object(*selected_id);
+      auto selected = scene->find_entity(*selected_id);
       if (selected)
         return selected;
 
-      if (!scene->objects().empty())
+      if (!scene->entities().empty())
       {
-        *selected_id = scene->objects().front()->id();
-        return scene->objects().front();
+        *selected_id = scene->entities().front()->id();
+        return scene->entities().front();
       }
 
       *selected_id = 0;
@@ -125,9 +126,15 @@ namespace nui
       return;
 
     auto scene = engine->get_scene();
-    auto selected_object = resolve_selected_object(scene, &mSelectedObjectId);
-    auto selected_mesh = std::dynamic_pointer_cast<nengine::MeshObject>(selected_object);
-    auto selected_light = std::dynamic_pointer_cast<nengine::LightObject>(selected_object);
+    auto selected_entity = resolve_selected_entity(scene, &mSelectedObjectId);
+    nengine::MeshComponent* selected_mesh = nullptr;
+    nengine::LightComponent* selected_light = nullptr;
+
+    if (selected_entity)
+    {
+      selected_mesh = selected_entity->get_component<nengine::MeshComponent>();
+      selected_light = selected_entity->get_component<nengine::LightComponent>();
+    }
 
     if (selected_mesh)
     {
@@ -170,66 +177,74 @@ namespace nui
 
       if (ImGui::Button("Add Mesh"))
       {
-        auto mesh = scene->create_mesh("mesh_" + std::to_string(scene->objects().size() + 1));
-        mesh->set_model("Assets/cube.fbx");
-        mesh->set_material("Assets/PBR.xml");
+        auto mesh = scene->create_mesh("mesh_" + std::to_string(scene->entities().size() + 1));
+        mesh->get_component<nengine::MeshComponent>()->set_model("Assets/cube.fbx");
+        mesh->get_component<nengine::MeshComponent>()->set_material("Assets/PBR.xml");
         mSelectedObjectId = mesh->id();
       }
 
       ImGui::SameLine();
       if (ImGui::Button("Add Light"))
       {
-        auto light = scene->create_light("light_" + std::to_string(scene->objects().size() + 1));
-        light->transform().position = glm::vec3(1.5f, 3.5f, 3.0f);
-        light->set_strength(100.0f);
+        auto light = scene->create_light("light_" + std::to_string(scene->entities().size() + 1));
+        light->get_component<nengine::TransformComponent>()->position = glm::vec3(1.5f, 3.5f, 3.0f);
+        light->get_component<nengine::LightComponent>()->set_strength(100.0f);
         mSelectedObjectId = light->id();
       }
 
       ImGui::SameLine();
-      begin_disabled(!selected_object);
-      if (ImGui::Button("Remove Selected") && selected_object)
+      begin_disabled(!selected_entity);
+      if (ImGui::Button("Remove Selected") && selected_entity)
       {
-        scene->remove_object(selected_object->id());
+        scene->remove_entity(selected_entity->id());
         mSelectedObjectId = 0;
-        selected_object.reset();
-        selected_mesh.reset();
-        selected_light.reset();
+        selected_entity.reset();
+        selected_mesh = nullptr;
+        selected_light = nullptr;
       }
-      end_disabled(!selected_object);
+      end_disabled(!selected_entity);
 
       ImGui::Separator();
       ImGui::TextDisabled("Objects");
-      for (const auto& object : scene->objects())
+      for (const auto& entity : scene->entities())
       {
-        const bool is_selected = selected_object && object->id() == selected_object->id();
-        std::string label = std::string(object->object_type()) + "##" + std::to_string(object->id());
-        if (ImGui::Selectable((object->name() + "###" + label).c_str(), is_selected))
-          mSelectedObjectId = object->id();
+        const bool is_selected = selected_entity && entity->id() == selected_entity->id();
+        const char* type_name = "Entity";
+        if (entity->get_component<nengine::MeshComponent>()) type_name = "Mesh";
+        else if (entity->get_component<nengine::LightComponent>()) type_name = "Light";
+
+        std::string label = std::string(type_name) + "##" + std::to_string(entity->id());
+        if (ImGui::Selectable((entity->name() + "###" + label).c_str(), is_selected))
+          mSelectedObjectId = entity->id();
 
         ImGui::SameLine(260.0f);
-        ImGui::TextDisabled("%s", object->object_type());
+        ImGui::TextDisabled("%s", type_name);
       }
     }
 
-    if (selected_object && ImGui::CollapsingHeader("Selected Object", ImGuiTreeNodeFlags_DefaultOpen))
+    if (selected_entity && ImGui::CollapsingHeader("Selected Object", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      std::string name = selected_object->name();
+      std::string name = selected_entity->name();
       if (ImGui::InputText("Name", &name))
-        selected_object->set_name(name);
+        selected_entity->set_name(name);
+
+      const char* type_name = "Entity";
+      if (selected_mesh) type_name = "Mesh";
+      else if (selected_light) type_name = "Light";
 
       ImGui::TextDisabled("Id %llu | Type %s",
-                          static_cast<unsigned long long>(selected_object->id()),
-                          selected_object->object_type());
+                          static_cast<unsigned long long>(selected_entity->id()),
+                          type_name);
 
-      auto transform = selected_object->transform();
-      if (ImGui::TreeNodeEx("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+      auto transform = selected_entity->get_component<nengine::TransformComponent>();
+      if (transform && ImGui::TreeNodeEx("Transform", ImGuiTreeNodeFlags_DefaultOpen))
       {
-        if (ImGui::SliderFloat3("Position", (float*)&transform.position, -20.0f, 20.0f))
-          selected_object->transform().position = transform.position;
-        if (ImGui::SliderFloat3("Rotation", (float*)&transform.rotation, -180.0f, 180.0f))
-          selected_object->transform().rotation = transform.rotation;
-        if (ImGui::SliderFloat3("Scale", (float*)&transform.scale, 0.01f, 20.0f))
-          selected_object->transform().scale = transform.scale;
+        if (ImGui::SliderFloat3("Position", (float*)&transform->position, -20.0f, 20.0f))
+          transform->position = transform->position;
+        if (ImGui::SliderFloat3("Rotation", (float*)&transform->rotation, -180.0f, 180.0f))
+          transform->rotation = transform->rotation;
+        if (ImGui::SliderFloat3("Scale", (float*)&transform->scale, 0.01f, 20.0f))
+          transform->scale = transform->scale;
         ImGui::TreePop();
       }
     }
