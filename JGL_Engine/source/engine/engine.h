@@ -28,7 +28,7 @@ namespace nengine
       bool show_plane = false;
     };
 
-    explicit Engine(const CreateInfo& create_info = {});
+    explicit Engine(const CreateInfo& create_info = CreateInfo());
     ~Engine();
 
     bool init();
