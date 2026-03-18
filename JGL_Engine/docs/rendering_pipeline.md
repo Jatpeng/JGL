@@ -1,34 +1,34 @@
-# Advanced Rendering Pipeline: IBL & Post-Processing
+# 高级渲染管线：基于图像的照明 (IBL) 与 后处理 (Post-Processing)
 
-This document describes the architectural design and implementation principles of the newly integrated Image-Based Lighting (IBL) and Post-Processing stack in the JGL Engine.
+本文档介绍了 JGL 引擎中新集成的基于图像的照明 (IBL) 和后处理栈的架构设计与实现原理。
 
-## Architectural Overview
+## 架构概述
 
-The rendering engine now supports a high dynamic range (HDR) workflow from the start of the rendering passes (forward or deferred) until the final image is output to the screen.
-Two major components have been introduced to accomplish this:
-1. **IBL Pipeline (`nrender::IBLPipeline`)**: Responsible for loading HDR environment maps and pre-computing the necessary textures (Irradiance Map, Prefiltered Environment Map, and BRDF LUT) required for Physically Based Rendering (PBR).
-2. **Post-Processing Stack (`nrender::PostProcessStack`)**: A framework applied at the end of the rendering pass that handles HDR tone mapping and gamma correction before rendering to the default framebuffer (screen).
+渲染引擎现在支持高动态范围 (HDR) 工作流，从渲染通道（前向或延迟渲染）开始，直到最终图像输出到屏幕。
+为了实现这一目标，引入了两个主要组件：
+1. **IBL 管线 (`nrender::IBLPipeline`)**：负责加载 HDR 环境贴图，并预计算基于物理的渲染 (PBR) 所需的必要纹理（辐照度贴图 Irradiance Map、预过滤环境贴图 Prefiltered Environment Map 和 BRDF 查找表 LUT）。
+2. **后处理栈 (`nrender::PostProcessStack`)**：在渲染通道结束时应用的一个框架，负责在渲染到默认帧缓冲（屏幕）之前进行 HDR 色调映射 (Tone Mapping) 和伽马校正 (Gamma Correction)。
 
-## Image-Based Lighting (IBL)
+## 基于图像的照明 (IBL)
 
-IBL provides highly realistic ambient lighting by treating the surrounding environment as a complex light source. The `IBLPipeline` component automates the generation of the three essential maps:
+IBL 通过将周围环境视为复杂的光源，提供高度逼真的环境光照。`IBLPipeline` 组件自动生成三个基本贴图：
 
-1. **Equirectangular to Cubemap Conversion**: The pipeline loads an HDR equirectangular map (e.g., `.hdr`) using `stbi_loadf`. It then renders this map onto a unit cube from the perspective of its center to generate an environment cubemap (`GL_RGB16F`).
-2. **Irradiance Map (Diffuse Ambient)**: By convolving the environment cubemap, we pre-calculate the diffuse irradiance for every normal direction. This convolution uses a specialized shader (`irradiance_convolution.fs`) that samples the hemisphere above each normal.
-3. **Prefiltered Environment Map (Specular Ambient)**: To approximate specular reflections for different material roughness values, the environment map is prefiltered at varying mipmap levels. Higher mip levels correspond to rougher surfaces (more scattered reflections), utilizing importance sampling based on the GGX normal distribution function (`prefilter.fs`).
-4. **BRDF LUT**: A 2D Lookup Texture (`brdf.fs`) is pre-computed to store the BRDF response (scale and bias to $F_0$) given the dot product between the surface normal and view direction ($N \cdot V$) and surface roughness. This is independent of the environment map and only needs to be generated once.
+1. **等距柱状投影到立方体贴图的转换 (Equirectangular to Cubemap)**：管线使用 `stbi_loadf` 加载 HDR 等距柱状投影贴图（例如 `.hdr` 文件）。然后，它从中心视角将该贴图渲染到单位立方体上，生成环境立方体贴图 (`GL_RGB16F`)。
+2. **辐照度贴图 (漫反射环境光 Irradiance Map)**：通过对环境立方体贴图进行卷积计算，我们为每个法线方向预先计算了漫反射辐照度。此卷积过程使用专用着色器 (`irradiance_convolution.fs`) 在每个法线上方的半球进行采样。
+3. **预过滤环境贴图 (镜面反射环境光 Prefiltered Environment Map)**：为了近似不同材质粗糙度值的镜面反射，环境贴图在不同的 Mipmap 级别进行了预过滤。较高的 Mip 级别对应较粗糙的表面（反射更加散射），利用基于 GGX 法线分布函数的重点采样 (Importance Sampling) (`prefilter.fs`) 实现。
+4. **BRDF 查找表 (BRDF LUT)**：预先计算的 2D 查找纹理 (`brdf.fs`)，用于存储给定表面法线与视线方向的点积 ($N \cdot V$) 以及表面粗糙度时的 BRDF 响应（缩放和偏移至 $F_0$）。它独立于环境贴图，只需要生成一次。
 
-These maps are stored internally by `IBLPipeline` and are bound to specific texture units (`GL_TEXTURE5`, `GL_TEXTURE6`, `GL_TEXTURE7` for forward rendering, and `GL_TEXTURE3`, `GL_TEXTURE4`, `GL_TEXTURE5` for deferred lighting) before rendering scene meshes or performing the deferred lighting pass. The PBR shaders (`pbr_fs.shader`, `deferred_lighting_fs.shader`) then utilize these textures to compute the ambient diffuse and specular reflection based on the split-sum approximation.
+这些贴图由 `IBLPipeline` 在内部存储，并在渲染场景网格或执行延迟光照通道之前绑定到特定的纹理单元（前向渲染为 `GL_TEXTURE5`, `GL_TEXTURE6`, `GL_TEXTURE7`；延迟光照为 `GL_TEXTURE3`, `GL_TEXTURE4`, `GL_TEXTURE5`）。然后，PBR 着色器（`pbr_fs.shader`, `deferred_lighting_fs.shader`）利用这些纹理根据分离和近似 (split-sum approximation) 计算环境漫反射和镜面反射。
 
-## High Dynamic Range (HDR) & Post-Processing
+## 高动态范围 (HDR) 与 后处理
 
-### HDR Framebuffer
-To accurately accumulate light intensities without clamping to the standard $0.0 - 1.0$ LDR range, the main framebuffer (`nrender::OpenGL_FrameBuffer`) now utilizes `GL_RGBA16F` as its internal color format with a `GL_FLOAT` data type. All geometry and lighting passes render to this HDR target.
+### HDR 帧缓冲
+为了准确累积光照强度而不被截断到标准的 $0.0 - 1.0$ LDR（低动态范围）范围，主帧缓冲 (`nrender::OpenGL_FrameBuffer`) 现在使用 `GL_RGBA16F` 作为其内部颜色格式，并使用 `GL_FLOAT` 数据类型。所有的几何和光照通道都渲染到此 HDR 目标。
 
-### Post-Processing Stack
-The `PostProcessStack` manages a fullscreen quad and a post-processing shader (`post_process_fs.shader`) which acts as the final stage of the rendering pipeline.
+### 后处理栈
+`PostProcessStack` 管理一个全屏四边形和一个后处理着色器 (`post_process_fs.shader`)，作为渲染管线的最后阶段。
 
-1. **Tone Mapping**: The engine employs the ACES (Academy Color Encoding System) filmic tone mapping curve. This curve maps the unbounded HDR color values smoothly down to the displayable $0.0 - 1.0$ range while preserving contrast in bright areas and avoiding harsh clipping (burn-out).
-2. **Gamma Correction**: After tone mapping, the linear color space values are transformed into sRGB space by applying a gamma correction of $1 / 2.2$. This ensures that colors are perceived correctly on standard monitors.
+1. **色调映射 (Tone Mapping)**：引擎采用 ACES (Academy Color Encoding System) 电影级色调映射曲线。这条曲线将无界的 HDR 颜色值平滑地映射回显示器可显示的 $0.0 - 1.0$ 范围，同时保留亮部区域的对比度，避免生硬的过曝。
+2. **伽马校正 (Gamma Correction)**：在色调映射之后，线性颜色空间的值通过应用 $1 / 2.2$ 的伽马校正转换到 sRGB 空间。这确保了颜色在标准显示器上能够被正确感知。
 
-By isolating tone mapping and gamma correction in a dedicated post-processing pass, the rest of the rendering pipeline and shaders remain strictly in linear space, greatly simplifying lighting calculations and ensuring physical correctness.
+通过在专用的后处理通道中隔离色调映射和伽马校正，渲染管线的其余部分和着色器可以严格保持在线性空间中，这极大地简化了光照计算并确保了物理上的正确性。

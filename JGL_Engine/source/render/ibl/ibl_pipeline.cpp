@@ -298,6 +298,8 @@ namespace nrender
     render_quad();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    glDeleteTextures(1, &hdrTexture);
+
     return true;
   }
 }
