@@ -1,5 +1,8 @@
 # JGL 引擎架构重构总结：迈向商业级 ECS 框架
 
+> 本文档从原 `JGL_Engine/docs/architecture_summary.md` 收拢到 `docs/`，并会持续根据实现演进维护。
+> 其中部分章节属于架构演进记录，不等同于“当前全部已完成状态”；实现细节请以 `source/` 与其它“当前实现”文档为准。
+
 ## 1. 引言
 
 在现代游戏引擎开发中，基础架构的选择决定了引擎的扩展性、性能以及未来的跨平台和渲染管线升级能力。本文记录了将 JGL 引擎从一个基础渲染项目重构为商业级引擎架构的过程。
@@ -49,6 +52,7 @@ T* add_component(Args&&... args) {
     return comp.get();
 }
 ```
+
 通过 `std::unordered_map<std::type_index, std::shared_ptr<IComponent>>` 实现组件的安全存储和多态类型擦除，极大地减少了内存碎片和显式 `new`/`delete` 的调用。
 
 ### 2.3 `Transform` 层级树
@@ -60,6 +64,7 @@ T* add_component(Args&&... args) {
 ## 3. UI 交互与 Python 绑定
 
 ### 3.1 属性面板重构
+
 由于数据模型从继承变成了组件式，我们重构了 ImGui 界面（如 `property_panel.cpp`）。现在不再使用 `dynamic_cast<MeshObject>`，而是使用类型安全的组件查询机制：
 
 ```cpp
@@ -68,6 +73,7 @@ auto selected_light = entity->get_component<nengine::LightComponent>();
 ```
 
 ### 3.2 脚本接口升级
+
 Python 绑定同样进行了全面升级，通过 `pybind11` 我们暴露了 `Entity` 以及它的只读属性（如 `mesh`、`light` 和 `transform`），从而允许脚本端无缝访问新架构的组件。
 
 ---
@@ -80,3 +86,4 @@ Python 绑定同样进行了全面升级，通过 `pybind11` 我们暴露了 `En
 3. **架构清晰**，可以立刻着手进行 PBR 管线、多线程渲染和跨平台 RHI 的后续开发。
 
 JGL 已初步具备了商业级游戏引擎的核心特征，接下来我们将向更加高性能的渲染管线进发！
+

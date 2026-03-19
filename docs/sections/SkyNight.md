@@ -11,7 +11,7 @@
 
 ## 参数来源
 
-- `time`：在 `SceneView::render()` 中每帧传入（`glfwGetTime()`）。
+- `time`：在渲染阶段每帧传入（`glfwGetTime()`）。
 - `camPos`：由相机更新时传入，用于与世界坐标组合出观察方向。
 
 ## 使用方式
@@ -22,4 +22,5 @@
 
 > 说明：`NightSky.xml` 当前未暴露额外可调参数，后续可加入星空亮度、色调和迭代步数控制。
 
-![星空效果预览](./Images/SkyNight/1692618848257.png)
+![星空效果预览](../../sections/Images/SkyNight/1692618848257.png)
+

@@ -8,13 +8,14 @@
 - Shader：`shaders/bloom_vs.shader` + `shaders/bloom_fs.shader`
 
 目前 `bloom_fs.shader` 仍是占位实现（输出固定红色），尚未完成完整 Bloom 后处理链路。
+当前主离屏帧缓冲为 LDR 颜色格式，因此文档中的 HDR Bloom 流程仍属于规划项。
 
 ## 已接入能力
 
 - 可通过 Property 面板加载 `Bloom.xml`。
 - 材质参数（贴图/float/float3）可沿用现有 `Material` 系统下发。
 
-## 建议的完整 Bloom 实现路径
+## 规划中的 Bloom 路径（未实现）
 
 1. 场景渲染到 HDR FBO（浮点纹理）。
 2. 提取亮部（threshold pass）。
@@ -23,4 +24,5 @@
 
 ## 备注
 
-如需快速演示“粒子特效”，建议先在当前架构中增加独立的粒子系统模块，并通过 `SceneView` 接入到同一渲染循环。
+当前文档不再将 Bloom 视为已接入能力；后续实现应接入 `RenderEngine` 的现有后处理链路（`PostProcessStack`）。
+

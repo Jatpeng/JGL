@@ -12,11 +12,11 @@
   - `vGravity`：重力/方向偏移
   - `FurNoiseTex`、`FurColorTex`：噪声与颜色控制
 
-在 `SceneView::render()` 中，当材质名为 `fur` 且开启 `multipass` 时，会按 `Pass` 循环绘制模型，并通过 `PassIndex` 驱动每层偏移。
+在 `RenderEngine::render_mesh_object()` 中，当材质名为 `fur` 且开启 `multipass` 时，会按 `Pass` 循环绘制模型，并通过 `PassIndex` 驱动每层偏移。
 
 ## 代码关联
 
-- 多 Pass 判定：`SceneView::render()`
+- 多 Pass 判定：`RenderEngine::render_mesh_object()`
 - 材质参数加载：`Material::load()`
 - 参数下发 Shader：`Material::update_shader_params()`
 
@@ -26,6 +26,7 @@
 2. 点击 `OpenMaterial...` 选择 `Fur.xml`。
 3. 在 Material 参数区调节 `Pass/FurLength/vGravity`，观察毛发体积变化。
 
-![Fur 效果预览](./Images/Fur/1692618678620.png)
+![Fur 效果预览](../../sections/Images/Fur/1692618678620.png)
 
-参考：<http://sorumi.xyz/posts/unity-fur-shader/>
+参考：`http://sorumi.xyz/posts/unity-fur-shader/`
+

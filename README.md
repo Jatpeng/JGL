@@ -54,17 +54,22 @@ JGL_Engine 是一个基于 OpenGL 的实时渲染引擎原型。
 
 ## 文档与图片
 
-`sections/` 目录中保存了当前功能设计和实现说明：
+文档已统一收拢到 `docs/`（包含原 `sections/` 与 `JGL_Engine/docs/` 的内容）：
 
-- [编辑器架构](sections/JGLEditor.md)
-- [延迟渲染管线设计](sections/延迟渲染管线设计.md)
-- [Python 接口设计](sections/Python接口设计.md)
-- [骨骼动画加载](sections/骨骼动画加载.md)
-- [PBR 材质](sections/PBR材质.md)
-- [Bloom](sections/bloom.md)
-- [毛发材质](sections/Fur.md)
-- [星空材质](sections/SkyNight.md)
-- [天气效果](sections/Weather.md)
+- [文档索引](docs/index.md)
+- 引擎实现对齐：
+  - [架构重构总结](docs/engine/architecture_summary.md)
+  - [渲染管线：IBL 与后处理栈](docs/engine/rendering_pipeline.md)
+- 功能专题（原 sections）：
+  - [编辑器架构](docs/sections/JGLEditor.md)
+  - [延迟渲染管线设计](docs/sections/延迟渲染管线设计.md)
+  - [Python 接口设计](docs/sections/Python接口设计.md)
+  - [骨骼动画加载](docs/sections/骨骼动画加载.md)
+  - [PBR 材质](docs/sections/PBR材质.md)
+  - [Bloom](docs/sections/bloom.md)
+  - [毛发材质](docs/sections/Fur.md)
+  - [星空材质](docs/sections/SkyNight.md)
+  - [天气效果](docs/sections/Weather.md)
 
 文档图片资源已随仓库提交，主要位于以下目录：
 

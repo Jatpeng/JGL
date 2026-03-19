@@ -19,7 +19,10 @@
 - `DistributionGGX` 法线分布项
 - `GeometrySmith` 几何遮蔽项
 - `fresnelSchlick` 菲涅耳项
-- 法线贴图 TBN 重建与 gamma/tonemap 处理
+- 法线贴图 TBN 重建
+- shader 内包含 gamma/tonemap 相关计算
+
+> 说明：当前主离屏帧缓冲仍为 LDR 格式，文档中不将其表述为完整 HDR 管线。
 
 ## 编辑器联动
 
@@ -30,4 +33,5 @@
 - 对金属材质优先保证 `metallic/roughness` 贴图质量。
 - 若场景偏暗，可先调高 `lightColor`，再细调粗糙度。
 
-![PBR 效果预览](./Images/PBR材质/1692605025279.jpg)
+![PBR 效果预览](../../sections/Images/PBR材质/1692605025279.jpg)
+
