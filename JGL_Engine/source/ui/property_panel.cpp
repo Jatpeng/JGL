@@ -6,6 +6,7 @@
 #include "misc/cpp/imgui_stdlib.h"
 
 #include <array>
+#include <cctype>
 #include <filesystem>
 #include <optional>
 
@@ -54,37 +55,38 @@ namespace nui
 #endif
     }
 
-    std::optional<std::string> open_native_file_dialog(const wchar_t* title, const wchar_t* filter)
+    std::optional<std::string> open_native_file_dialog(
+      const wchar_t* title,
+      const wchar_t* filter,
+      const std::string& initial_relative_dir = "")
     {
-      OPENFILENAMEW dialog;
-      ZeroMemory(&dialog, sizeof(dialog));
-#ifdef _WIN32
-      std::array<wchar_t, 4096> filename = {};
-      const std::wstring initial_dir = wide_from_narrow(FileSystem::getPath(""));
       OPENFILENAMEW dialog = {};
-      dialog.lStructSize = sizeof(dialog);
+      std::array<wchar_t, 4096> filename = {};
+      const std::wstring initial_dir = wide_from_narrow(FileSystem::getPath(initial_relative_dir));
 
-      dialog.hwndOwner = GetActiveWindow();
       dialog.lStructSize = sizeof(dialog);
-      std::array<wchar_t, MAX_PATH> filename = { 0 };
+      dialog.hwndOwner = GetActiveWindow();
       dialog.lpstrFile = filename.data();
-      dialog.nMaxFile = MAX_PATH;
+      dialog.nMaxFile = static_cast<DWORD>(filename.size());
       dialog.lpstrFilter = filter;
       dialog.lpstrTitle = title;
+      dialog.lpstrInitialDir = initial_dir.empty() ? nullptr : initial_dir.c_str();
       dialog.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
       if (GetOpenFileNameW(&dialog) == 0)
         return {};
 
       return narrow_from_wide(filename.data());
-#else
-      std::cout << "open_native_file_dialog not implemented on this platform" << std::endl;
-      return std::nullopt;
-#endif
     }
 #else
-    std::optional<std::string> open_native_file_dialog(const wchar_t* title, const wchar_t* filter)
+    std::optional<std::string> open_native_file_dialog(
+      const wchar_t* title,
+      const wchar_t* filter,
+      const std::string& initial_relative_dir = "")
     {
+      (void)title;
+      (void)filter;
+      (void)initial_relative_dir;
       return {};
     }
 #endif
@@ -95,6 +97,111 @@ namespace nui
         return std::string("<empty>");
 
       return std::filesystem::path(path).filename().string();
+    }
+
+    bool use_color_editor_for_param(const std::string& param_name)
+    {
+      std::string lower_name = param_name;
+      std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), [](unsigned char c)
+      {
+        return static_cast<char>(std::tolower(c));
+      });
+
+      return lower_name == "color" ||
+             lower_name.find("color") != std::string::npos ||
+             lower_name.find("colour") != std::string::npos;
+    }
+
+    std::vector<std::string> list_screen_effect_materials()
+    {
+      std::vector<std::string> material_paths;
+      const std::filesystem::path effects_root(FileSystem::getPath("Assets/screen_effects"));
+      if (!std::filesystem::exists(effects_root))
+        return material_paths;
+
+      for (const auto& entry : std::filesystem::directory_iterator(effects_root))
+      {
+        if (!entry.is_regular_file())
+          continue;
+
+        const std::string ext = entry.path().extension().string();
+        if (ext == ".xml" || ext == ".mtl")
+          material_paths.push_back(entry.path().string());
+      }
+
+      std::sort(material_paths.begin(), material_paths.end());
+      return material_paths;
+    }
+
+    void draw_material_parameter_editor(const std::shared_ptr<Material>& material)
+    {
+      if (!material)
+        return;
+
+      if (ImGui::TreeNodeEx("Scalars", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        for (auto& it : material->getFloatMap())
+        {
+          float tmp = it.second;
+          if (ImGui::SliderFloat(it.first.c_str(), &tmp, -100.0f, 100.0f))
+            it.second = tmp;
+        }
+        if (material->getFloatMap().empty())
+          ImGui::TextDisabled("No editable scalar parameters.");
+        ImGui::TreePop();
+      }
+
+      if (ImGui::TreeNodeEx("Vector2", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        for (auto& it : material->getFloat2Map())
+        {
+          glm::vec2 tmp = it.second;
+          if (ImGui::SliderFloat2(it.first.c_str(), (float*)&tmp, -100.0f, 100.0f))
+            it.second = tmp;
+        }
+        if (material->getFloat2Map().empty())
+          ImGui::TextDisabled("No editable float2 parameters.");
+        ImGui::TreePop();
+      }
+
+      if (ImGui::TreeNodeEx("Vector3", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        for (auto& it : material->getFloat3Map())
+        {
+          glm::vec3 tmp = it.second;
+          const bool is_color_param = use_color_editor_for_param(it.first);
+          const bool changed = is_color_param
+            ? ImGui::ColorEdit3(it.first.c_str(), (float*)&tmp)
+            : ImGui::SliderFloat3(it.first.c_str(), (float*)&tmp, -100.0f, 100.0f);
+
+          if (changed)
+            it.second = tmp;
+        }
+        if (material->getFloat3Map().empty())
+          ImGui::TextDisabled("No editable float3 parameters.");
+        ImGui::TreePop();
+      }
+
+      if (ImGui::TreeNodeEx("Texture Slots", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        for (const auto& it : material->getTextureMap())
+        {
+          const std::string resolved_name = file_label(it.second.second);
+          ImGui::BulletText("%s", it.first.c_str());
+          ImGui::SameLine(140.0f);
+          ImGui::TextUnformatted(resolved_name.c_str());
+
+          if (ImGui::IsItemHovered())
+          {
+            ImGui::BeginTooltip();
+            ImGui::TextWrapped("%s", it.second.second.c_str());
+            ImGui::EndTooltip();
+          }
+        }
+        if (material->getTextureMap().empty())
+          ImGui::TextDisabled("No texture slots.");
+        ImGui::TreePop();
+      }
     }
 
     void begin_disabled(bool disabled)
@@ -202,8 +309,8 @@ namespace nui
       if (ImGui::Button("Add Mesh"))
       {
         auto mesh = scene->create_mesh("mesh_" + std::to_string(scene->entities().size() + 1));
-        mesh->get_component<nengine::MeshComponent>()->set_model("Assets/cube.fbx");
-        mesh->get_component<nengine::MeshComponent>()->set_material("Assets/PBR.xml");
+        mesh->get_component<nengine::MeshComponent>()->set_model("Assets/models/cube.fbx");
+        mesh->get_component<nengine::MeshComponent>()->set_material("Assets/materials/PBR.xml");
         mSelectedObjectId = mesh->id();
       }
 
@@ -289,7 +396,8 @@ namespace nui
       {
         const auto file_path = open_native_file_dialog(
           L"Open Mesh",
-          L"Mesh Files (*.fbx;*.obj;*.dae)\0*.fbx;*.obj;*.dae\0All Files (*.*)\0*.*\0");
+          L"Mesh Files (*.fbx;*.obj;*.dae)\0*.fbx;*.obj;*.dae\0All Files (*.*)\0*.*\0",
+          "Assets/models");
         if (file_path && selected_mesh->set_model(*file_path))
           mCurrentMeshFile = file_label(*file_path);
       }
@@ -300,7 +408,8 @@ namespace nui
       {
         const auto file_path = open_native_file_dialog(
           L"Open Shader",
-          L"Shader Files (*_vs.shader;*_fs.shader)\0*_vs.shader;*_fs.shader\0All Files (*.*)\0*.*\0");
+          L"Shader Files (*_vs.shader;*_fs.shader)\0*_vs.shader;*_fs.shader\0All Files (*.*)\0*.*\0",
+          "Shaders");
         if (file_path && selected_mesh->set_shader(*file_path))
           mCurrentShaderFile = file_label(selected_mesh->shader_path());
       }
@@ -311,7 +420,8 @@ namespace nui
       {
         const auto file_path = open_native_file_dialog(
           L"Open Material",
-          L"Material Files (*.mtl;*.xml)\0*.mtl;*.xml\0All Files (*.*)\0*.*\0");
+          L"Material Files (*.mtl;*.xml)\0*.mtl;*.xml\0All Files (*.*)\0*.*\0",
+          "Assets/materials");
         if (file_path && selected_mesh->set_material(*file_path))
         {
           mCurrentMaterialFile = file_label(selected_mesh->material_path());
@@ -327,51 +437,7 @@ namespace nui
         selected_mesh->material() &&
         ImGui::CollapsingHeader("Material Parameters", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      auto material = selected_mesh->material();
-      if (ImGui::TreeNodeEx("Scalars", ImGuiTreeNodeFlags_DefaultOpen))
-      {
-        for (auto& it : material->getFloatMap())
-        {
-          float tmp = it.second;
-          if (ImGui::SliderFloat(it.first.c_str(), &tmp, -100.0f, 100.0f))
-            it.second = tmp;
-        }
-        if (material->getFloatMap().empty())
-          ImGui::TextDisabled("No editable scalar material parameters.");
-        ImGui::TreePop();
-      }
-
-      if (ImGui::TreeNodeEx("Vectors", ImGuiTreeNodeFlags_DefaultOpen))
-      {
-        for (auto& it : material->getFloat3Map())
-        {
-          glm::vec3 tmp = it.second;
-          if (ImGui::SliderFloat3(it.first.c_str(), (float*)&tmp, -100.0f, 100.0f))
-            it.second = tmp;
-        }
-        if (material->getFloat3Map().empty())
-          ImGui::TextDisabled("No editable vector material parameters.");
-        ImGui::TreePop();
-      }
-
-      if (ImGui::TreeNodeEx("Texture Slots", ImGuiTreeNodeFlags_DefaultOpen))
-      {
-        for (const auto& it : material->getTextureMap())
-        {
-          const std::string resolved_name = file_label(it.second.second);
-          ImGui::BulletText("%s", it.first.c_str());
-          ImGui::SameLine(140.0f);
-          ImGui::TextUnformatted(resolved_name.c_str());
-
-          if (ImGui::IsItemHovered())
-          {
-            ImGui::BeginTooltip();
-            ImGui::TextWrapped("%s", it.second.second.c_str());
-            ImGui::EndTooltip();
-          }
-        }
-        ImGui::TreePop();
-      }
+      draw_material_parameter_editor(selected_mesh->material());
     }
 
     if (selected_light && ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
@@ -423,6 +489,64 @@ namespace nui
 
       if (deferred_requested && !deferred_available)
         ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f), "At least one mesh falls back to forward rendering.");
+    }
+
+    if (ImGui::CollapsingHeader("Screen Effects", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+      const auto effect_paths = list_screen_effect_materials();
+      const std::string current_effect_path = engine->get_screen_effect_material_path();
+      const std::string current_effect_label = engine->has_screen_effect_material()
+        ? file_label(current_effect_path)
+        : std::string("Off");
+
+      if (ImGui::BeginCombo("Effect Material", current_effect_label.c_str()))
+      {
+        const bool off_selected = !engine->has_screen_effect_material();
+        if (ImGui::Selectable("Off", off_selected))
+          engine->clear_screen_effect_material();
+        if (off_selected)
+          ImGui::SetItemDefaultFocus();
+
+        for (const auto& effect_path : effect_paths)
+        {
+          const bool is_selected = current_effect_path == effect_path;
+          const std::string effect_name = std::filesystem::path(effect_path).stem().string();
+          if (ImGui::Selectable(effect_name.c_str(), is_selected))
+            engine->set_screen_effect_material(effect_path);
+          if (is_selected)
+            ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
+      }
+
+      if (ImGui::Button("Load Effect Material..."))
+      {
+        const auto file_path = open_native_file_dialog(
+          L"Open Screen Effect Material",
+          L"Material Files (*.xml;*.mtl)\0*.xml;*.mtl\0All Files (*.*)\0*.*\0",
+          "Assets/screen_effects");
+        if (file_path)
+          engine->set_screen_effect_material(*file_path);
+      }
+
+      if (engine->has_screen_effect_material())
+      {
+        ImGui::SameLine();
+        if (ImGui::Button("Clear Effect"))
+          engine->clear_screen_effect_material();
+
+        ImGui::TextDisabled("Current");
+        ImGui::SameLine();
+        ImGui::TextUnformatted(file_label(current_effect_path).c_str());
+
+        auto effect_material = engine->get_screen_effect_material();
+        if (effect_material &&
+            ImGui::CollapsingHeader("Effect Parameters", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+          draw_material_parameter_editor(effect_material);
+        }
+      }
     }
 
     if (ImGui::CollapsingHeader("Capture", ImGuiTreeNodeFlags_DefaultOpen))

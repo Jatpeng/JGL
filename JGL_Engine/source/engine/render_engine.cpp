@@ -10,6 +10,14 @@ namespace nengine
 {
   namespace
   {
+    constexpr int kForwardIBLIrradianceUnit = 8;
+    constexpr int kForwardIBLPrefilterUnit = 9;
+    constexpr int kForwardIBLBrdfUnit = 10;
+    constexpr int kDeferredIBLIrradianceUnit = 3;
+    constexpr int kDeferredIBLPrefilterUnit = 4;
+    constexpr int kDeferredIBLBrdfUnit = 5;
+    constexpr float kPrefilterMaxLod = 4.0f;
+
     uint32_t create_solid_texture_rgba(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
     {
       uint32_t texture_id = 0;
@@ -80,6 +88,8 @@ namespace nengine
       load_plane();
 
     init_deferred_pipeline();
+    mPostProcessStack = std::make_unique<nrender::PostProcessStack>();
+    mPostProcessStack->init(mResources, mRenderTargetSize.x, mRenderTargetSize.y);
   }
 
   RenderEngine::~RenderEngine()
@@ -120,6 +130,31 @@ namespace nengine
 
     create_fullscreen_quad();
     create_fallback_textures();
+  }
+
+  void RenderEngine::init_ibl_pipeline()
+  {
+    if (mCubemapTexture == 0)
+    {
+      mIBLPipeline.reset();
+      return;
+    }
+
+    if (!mIBLPipeline)
+      mIBLPipeline = std::make_unique<nrender::IBLPipeline>();
+
+    if (!mIBLPipeline->init())
+    {
+      std::cout << "[RenderEngine] Failed to initialize IBL pipeline." << std::endl;
+      mIBLPipeline.reset();
+      return;
+    }
+
+    if (!mIBLPipeline->build_from_cubemap(mCubemapTexture))
+    {
+      std::cout << "[RenderEngine] Failed to build IBL textures from skybox cubemap." << std::endl;
+      mIBLPipeline.reset();
+    }
   }
 
   void RenderEngine::create_fullscreen_quad()
@@ -169,6 +204,8 @@ namespace nengine
     mFrameBuffer->create_buffers(width, height);
     if (mGBuffer)
       mGBuffer->resize(width, height);
+    if (mPostProcessStack)
+      mPostProcessStack->resize(width, height);
     if (mCamera)
       mCamera->set_aspect(static_cast<float>(width) / static_cast<float>(height));
   }
@@ -189,6 +226,33 @@ namespace nengine
   {
     if (mCamera)
       mCamera->reset();
+  }
+
+  bool RenderEngine::set_screen_effect_material(const std::string& path)
+  {
+    return mPostProcessStack && mPostProcessStack->set_effect_material(path);
+  }
+
+  void RenderEngine::clear_screen_effect_material()
+  {
+    if (mPostProcessStack)
+      mPostProcessStack->clear_effect_material();
+  }
+
+  bool RenderEngine::has_screen_effect_material() const
+  {
+    return mPostProcessStack && mPostProcessStack->has_effect();
+  }
+
+  std::shared_ptr<Material> RenderEngine::get_screen_effect_material() const
+  {
+    return mPostProcessStack ? mPostProcessStack->get_effect_material() : nullptr;
+  }
+
+  const std::string& RenderEngine::get_screen_effect_material_path() const
+  {
+    static const std::string empty_path;
+    return mPostProcessStack ? mPostProcessStack->get_effect_material_path() : empty_path;
   }
 
   std::vector<std::shared_ptr<Entity>> RenderEngine::collect_mesh_entities() const
@@ -226,7 +290,7 @@ namespace nengine
     if (mSkyShader->get_program_id() == 0)
       std::cout << "[RenderEngine] Skybox shader failed." << std::endl;
 
-    mSkyBox = mResources->load_model("Assets/defaultcube.fbx");
+    mSkyBox = mResources->load_model("Assets/models/defaultcube.fbx");
 
     std::vector<std::string> faces
     {
@@ -238,6 +302,7 @@ namespace nengine
       "Assets/built_in/textures/skybox/back.jpg"
     };
     mCubemapTexture = mResources->load_cubemap(faces, false);
+    init_ibl_pipeline();
   }
 
   void RenderEngine::load_plane()
@@ -324,6 +389,7 @@ namespace nengine
       {
         shader->set_f1(static_cast<float>(i), "PassIndex");
         material->update_shader_params(shader);
+        apply_ibl_to_shader(shader, kForwardIBLIrradianceUnit, kForwardIBLPrefilterUnit, kForwardIBLBrdfUnit);
         model->Draw();
       }
       return;
@@ -331,6 +397,7 @@ namespace nengine
 
     if (material)
       material->update_shader_params(shader);
+    apply_ibl_to_shader(shader, kForwardIBLIrradianceUnit, kForwardIBLPrefilterUnit, kForwardIBLBrdfUnit);
     model->Draw();
   }
 
@@ -421,6 +488,7 @@ namespace nengine
     mDeferredLightingShader->set_i1(2, "gAlbedoMetallic");
     mDeferredLightingShader->set_i1(static_cast<int>(mDebugView), "debugView");
     mDeferredLightingShader->set_vec3(mCamera->get_position(), "camPos");
+    apply_ibl_to_shader(mDeferredLightingShader.get(), kDeferredIBLIrradianceUnit, kDeferredIBLPrefilterUnit, kDeferredIBLBrdfUnit);
 
     upload_lights(mDeferredLightingShader.get());
 
@@ -453,11 +521,13 @@ namespace nengine
     mDeferredGeometryShader->set_i1(1, "metallicMap");
     mDeferredGeometryShader->set_i1(2, "roughnessMap");
     mDeferredGeometryShader->set_i1(3, "normalMap");
+    mDeferredGeometryShader->set_i1(4, "aoMap");
 
     mDeferredGeometryShader->set_texture(GL_TEXTURE0, GL_TEXTURE_2D, mPlaneTexture);
     mDeferredGeometryShader->set_texture(GL_TEXTURE1, GL_TEXTURE_2D, mFallbackBlackTexture);
     mDeferredGeometryShader->set_texture(GL_TEXTURE2, GL_TEXTURE_2D, mFallbackWhiteTexture);
     mDeferredGeometryShader->set_texture(GL_TEXTURE3, GL_TEXTURE_2D, mFallbackNormalTexture);
+    mDeferredGeometryShader->set_texture(GL_TEXTURE4, GL_TEXTURE_2D, mFallbackWhiteTexture);
 
     mPlane->Draw();
   }
@@ -475,6 +545,34 @@ namespace nengine
 
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
+  }
+
+  bool RenderEngine::is_ibl_available() const
+  {
+    return mIBLPipeline &&
+           mIBLPipeline->get_irradiance_map() != 0 &&
+           mIBLPipeline->get_prefilter_map() != 0 &&
+           mIBLPipeline->get_brdf_lut() != 0;
+  }
+
+  void RenderEngine::apply_ibl_to_shader(nshaders::Shader* shader, int irradiance_unit, int prefilter_unit, int brdf_unit) const
+  {
+    if (!shader || shader->get_program_id() == 0)
+      return;
+
+    const bool ibl_available = is_ibl_available();
+    shader->set_i1(ibl_available ? 1 : 0, "iblEnabled");
+    shader->set_f1(kPrefilterMaxLod, "prefilterMaxLod");
+
+    if (!ibl_available)
+      return;
+
+    shader->set_i1(irradiance_unit, "irradianceMap");
+    shader->set_i1(prefilter_unit, "prefilterMap");
+    shader->set_i1(brdf_unit, "brdfLUT");
+    shader->set_texture(GL_TEXTURE0 + irradiance_unit, GL_TEXTURE_CUBE_MAP, mIBLPipeline->get_irradiance_map());
+    shader->set_texture(GL_TEXTURE0 + prefilter_unit, GL_TEXTURE_CUBE_MAP, mIBLPipeline->get_prefilter_map());
+    shader->set_texture(GL_TEXTURE0 + brdf_unit, GL_TEXTURE_2D, mIBLPipeline->get_brdf_lut());
   }
 
   void RenderEngine::upload_lights(nshaders::Shader* shader)
@@ -550,10 +648,26 @@ namespace nengine
       render_deferred_to_framebuffer();
     else
       render_forward_to_framebuffer();
+
+    if (mPostProcessStack && mFrameBuffer)
+    {
+      mPostProcessStack->render(
+        mFrameBuffer->get_texture(),
+        mRenderTargetSize.x,
+        mRenderTargetSize.y,
+        static_cast<float>(glfwGetTime()));
+    }
   }
 
   uint32_t RenderEngine::get_output_texture()
   {
+    if (mPostProcessStack)
+    {
+      const uint32_t post_process_texture = mPostProcessStack->get_output_texture();
+      if (post_process_texture != 0)
+        return post_process_texture;
+    }
+
     return mFrameBuffer ? mFrameBuffer->get_texture() : 0;
   }
 

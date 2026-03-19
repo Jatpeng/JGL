@@ -13,6 +13,7 @@ uniform sampler2D baseMap;
 uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D normalMap;
+uniform sampler2D aoMap;
 
 vec3 getNormalFromMap()
 {
@@ -37,9 +38,10 @@ void main()
     vec3 albedo = pow(texture(baseMap, TexCoords).rgb, vec3(2.2)) * color;
     float metallic = texture(metallicMap, TexCoords).r;
     float roughness = texture(roughnessMap, TexCoords).r;
+    float ao = texture(aoMap, TexCoords).r;
     vec3 normal = getNormalFromMap();
 
-    gPosition = vec4(WorldPos, 1.0);
+    gPosition = vec4(WorldPos, ao);
     gNormalRoughness = vec4(normalize(normal), roughness);
     gAlbedoMetallic = vec4(albedo, metallic);
 }

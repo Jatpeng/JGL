@@ -69,6 +69,12 @@ namespace nengine
     void set_debug_view(DebugView view) { mDebugView = view; }
     DebugView get_debug_view() const { return mDebugView; }
 
+    bool set_screen_effect_material(const std::string& path);
+    void clear_screen_effect_material();
+    bool has_screen_effect_material() const;
+    std::shared_ptr<Material> get_screen_effect_material() const;
+    const std::string& get_screen_effect_material_path() const;
+
     void set_model_transparent(bool is_transparent) { mModelTransparent = is_transparent; }
     bool is_model_transparent() const { return mModelTransparent; }
 
@@ -96,6 +102,7 @@ namespace nengine
 
   private:
     void init_deferred_pipeline();
+    void init_ibl_pipeline();
     void create_fullscreen_quad();
     void create_fallback_textures();
 
@@ -121,6 +128,8 @@ namespace nengine
     void render_transparent_model_overlay();
     void render_fullscreen_quad();
 
+    bool is_ibl_available() const;
+    void apply_ibl_to_shader(nshaders::Shader* shader, int irradiance_unit, int prefilter_unit, int brdf_unit) const;
     void upload_lights(nshaders::Shader* shader);
     std::vector<std::shared_ptr<Entity>> collect_mesh_entities() const;
 
@@ -149,7 +158,9 @@ namespace nengine
     std::shared_ptr<IResourceManager> mResources;
 
     std::unique_ptr<nrender::DeferredGBuffer> mGBuffer;
+    std::unique_ptr<nrender::IBLPipeline> mIBLPipeline;
     std::shared_ptr<nrender::RenderDocCapture> mRenderDocCapture;
+    std::unique_ptr<nrender::PostProcessStack> mPostProcessStack;
     std::unique_ptr<nshaders::Shader> mDeferredGeometryShader;
     std::unique_ptr<nshaders::Shader> mDeferredLightingShader;
     unsigned int mQuadVAO = 0;
@@ -157,34 +168,6 @@ namespace nengine
     unsigned int mFallbackWhiteTexture = 0;
     unsigned int mFallbackBlackTexture = 0;
     unsigned int mFallbackNormalTexture = 0;
-
-    unsigned int mShadowMapFBO_id = 0;
-    std::unique_ptr<nshaders::Shader> mDepthShader;
-    glm::mat4 mLightSpaceMatrix;
-    unsigned int mShadowMapTexture = 0;
-    const unsigned int SHADOW_WIDTH = 2048;
-    const unsigned int SHADOW_HEIGHT = 2048;
-
-    unsigned int mShadowMapFBO_id = 0;
-    std::unique_ptr<nshaders::Shader> mDepthShader;
-    glm::mat4 mLightSpaceMatrix;
-    unsigned int mShadowMapTexture = 0;
-    const unsigned int SHADOW_WIDTH = 2048;
-    const unsigned int SHADOW_HEIGHT = 2048;
-
-    unsigned int mShadowMapFBO_id = 0;
-    std::unique_ptr<nshaders::Shader> mDepthShader;
-    glm::mat4 mLightSpaceMatrix;
-    unsigned int mShadowMapTexture = 0;
-    unsigned int SHADOW_WIDTH = 2048;
-    unsigned int SHADOW_HEIGHT = 2048;
-
-    unsigned int mShadowMapFBO_id = 0;
-    std::unique_ptr<nshaders::Shader> mDepthShader;
-    glm::mat4 mLightSpaceMatrix;
-    unsigned int mShadowMapTexture = 0;
-    const unsigned int SHADOW_WIDTH = 2048;
-    const unsigned int SHADOW_HEIGHT = 2048;
 
     unsigned int mShadowMapFBO_id = 0;
     std::unique_ptr<nshaders::Shader> mDepthShader;

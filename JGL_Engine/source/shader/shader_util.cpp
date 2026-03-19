@@ -138,10 +138,22 @@ namespace nshaders
 		glUniform1f(myLoc, v);
 	}
 
+	void Shader::set_f2(float a, float b, const std::string& name)
+	{
+		GLint myLoc = glGetUniformLocation(get_program_id(), name.c_str());
+		glUniform2f(myLoc, a, b);
+	}
+
 	void Shader::set_f3(float a, float b, float c, const std::string& name)
 	{
 		GLint myLoc = glGetUniformLocation(get_program_id(), name.c_str());
 		glUniform3f(myLoc, a, b, c);
+	}
+
+	void Shader::set_vec2(const glm::vec2& vec2, const std::string& name)
+	{
+		GLint myLoc = glGetUniformLocation(get_program_id(), name.c_str());
+		glProgramUniform2fv(get_program_id(), myLoc, 1, glm::value_ptr(vec2));
 	}
 
 	void Shader::set_vec3(const glm::vec3& vec3, const std::string& name)

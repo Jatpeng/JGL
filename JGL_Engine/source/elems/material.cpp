@@ -28,9 +28,11 @@ void Material::load(const char* materialPath, const MaterialLoadContext* context
 	mEngineParams.clear();
 	mTexture_map.clear();
 	mFloat_map.clear();
+	mFloat2_map.clear();
 	mFloat3_map.clear();
 	mEngineTexture_map.clear();
 	mEngineFloat_map.clear();
+	mEngineFloat2_map.clear();
 	mEngineFloat3_map.clear();
 	mshader_path.clear();
 	name = "default";
@@ -102,6 +104,7 @@ void Material::load(const char* materialPath, const MaterialLoadContext* context
 		auto& target_params = engine_managed ? mEngineParams : params;
 		auto& target_texture_map = engine_managed ? mEngineTexture_map : mTexture_map;
 		auto& target_float_map = engine_managed ? mEngineFloat_map : mFloat_map;
+		auto& target_float2_map = engine_managed ? mEngineFloat2_map : mFloat2_map;
 		auto& target_float3_map = engine_managed ? mEngineFloat3_map : mFloat3_map;
 
 		target_params.push_back(param);
@@ -116,6 +119,11 @@ void Material::load(const char* materialPath, const MaterialLoadContext* context
 		{
 			target_float_map.insert(std::make_pair(param.name, std::stof(param.defaultValue)));
 		}
+		else if (param.type == "float2")
+		{
+			glm::vec2 value = StringtoFloat2(param.defaultValue);
+			target_float2_map.insert(std::make_pair(param.name, value));
+		}
 		else if (param.type == "float3")
 		{
 			glm::vec3 value = StringtoFloat3(param.defaultValue);
@@ -126,13 +134,21 @@ void Material::load(const char* materialPath, const MaterialLoadContext* context
 
 bool Material::update_shader_params(nshaders::Shader* shader)
 {
+	return update_shader_params(shader, 0);
+}
+
+bool Material::update_shader_params(nshaders::Shader* shader, int texture_unit_offset)
+{
 	for (const auto& it : mFloat_map)
 		shader->set_f1(it.second, it.first);
+
+	for (const auto& it : mFloat2_map)
+		shader->set_vec2(it.second, it.first);
 
 	for (const auto& it : mFloat3_map)
 		shader->set_vec3(it.second, it.first);
 
-	int tex_index = 0;
+	int tex_index = texture_unit_offset;
 	for (const auto& it : mTexture_map)
 	{
 		shader->set_i1(tex_index, it.first);
@@ -145,13 +161,27 @@ bool Material::update_shader_params(nshaders::Shader* shader)
 bool Material::set_param(string param_name, string type, string value)
 {
 	auto& target_float_map = is_engine_managed_param_name(param_name) ? mEngineFloat_map : mFloat_map;
+	auto& target_float2_map = is_engine_managed_param_name(param_name) ? mEngineFloat2_map : mFloat2_map;
 	auto& target_float3_map = is_engine_managed_param_name(param_name) ? mEngineFloat3_map : mFloat3_map;
 
 	if (type == "float")
 		target_float_map[param_name] = stof(value);
+	if (type == "float2")
+		target_float2_map[param_name] = StringtoFloat2(value);
 	if (type == "float3")
 		target_float3_map[param_name] = StringtoFloat3(value);
 	return true;
+}
+
+glm::vec2 Material::StringtoFloat2(std::string str)
+{
+	istringstream iss(str);
+	string token;
+	vector<string> tmp;
+	while (getline(iss, token, ','))
+		tmp.push_back(token);
+	glm::vec2 res{ stof(tmp[0]), stof(tmp[1]) };
+	return res;
 }
 
 glm::vec3 Material::StringtoFloat3(std::string str)
@@ -171,9 +201,11 @@ Material::~Material()
 	mEngineParams.clear();
 	mTexture_map.clear();
 	mFloat_map.clear();
+	mFloat2_map.clear();
 	mFloat3_map.clear();
 	mEngineTexture_map.clear();
 	mEngineFloat_map.clear();
+	mEngineFloat2_map.clear();
 	mEngineFloat3_map.clear();
 }
 

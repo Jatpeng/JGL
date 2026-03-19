@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Material
+Name ="ScreenRain"
+multipass ="false"
+shader= "JGL_Engine/shaders/screen_effect_rain_fs.shader"
+>
+  <Param
+Name="noiseMap"
+Type ="Texture"
+Default ="Assets/textures/weather/nosie.png"
+/>
+  <Param
+Name ="tint"
+Type ="float3"
+Default ="0.75,0.82,0.90"
+/>
+  <Param
+Name ="density"
+Type ="float"
+Default ="0.85"
+/>
+  <Param
+Name ="speed"
+Type ="float"
+Default ="4.50"
+/>
+  <Param
+Name ="tilt"
+Type ="float"
+Default ="0.35"
+/>
+  <Param
+Name ="brightness"
+Type ="float"
+Default ="0.65"
+/>
+  <Param
+Name ="trailLength"
+Type ="float"
+Default ="0.82"
+/>
+  <Param
+Name ="distortion"
+Type ="float"
+Default ="0.65"
+/>
+</Material>

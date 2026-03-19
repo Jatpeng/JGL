@@ -12,9 +12,14 @@ uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D normalMap;
 uniform sampler2D aoMap;
+uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
 
 uniform vec3 camPos;
 uniform float opacity = 1.0;
+uniform int iblEnabled = 0;
+uniform float prefilterMaxLod = 4.0;
 
 const float PI = 3.14159265359;
 const int MAX_DEFERRED_LIGHTS = 8;
@@ -91,6 +96,11 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
   return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+  return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
 vec3 accumulateLight(vec3 lightPos, vec3 lightRadiance, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
 {
   vec3 L = normalize(lightPos - WorldPos);
@@ -124,7 +134,7 @@ void main()
   // Keep the forward path in the same linear workflow as deferred shading.
   vec3 albedo = pow(albedoSample.rgb, vec3(2.2)) * color;
   float metallic = texture(metallicMap, TexCoords).r;
-  float roughness = texture(roughnessMap, TexCoords).r;
+  float roughness = clamp(texture(roughnessMap, TexCoords).r, 0.04, 1.0);
   float ao = texture(aoMap, TexCoords).r;
   float surfaceAlpha = albedoSample.a * opacity;
 
@@ -144,17 +154,29 @@ void main()
     Lo += accumulateLight(lights[i].position, lights[i].color, N, V, albedo, metallic, roughness, F0);
   }
 
-
-  // ambient lighting (note that the next IBL tutorial will replace 
-  // this ambient lighting with environment lighting).
   vec3 ambient = vec3(0.03) * albedo * ao;
+  if (iblEnabled != 0)
+  {
+    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+    vec3 kS = F;
+    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 diffuse = irradiance * albedo;
 
-  vec3 color = ambient + Lo;
+    vec3 R = reflect(-V, N);
+    vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * prefilterMaxLod).rgb;
+    vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+
+    ambient = (kD * diffuse + specular) * ao;
+  }
+
+  vec3 finalColor = ambient + Lo;
 
   // HDR tonemapping
-  color = color / (color + vec3(1.0));
+  finalColor = finalColor / (finalColor + vec3(1.0));
 
   // gamma correct
-  color = pow(color, vec3(1.0 / 2.2));
-  FragColor = vec4(color, surfaceAlpha);
+  finalColor = pow(finalColor, vec3(1.0 / 2.2));
+  FragColor = vec4(finalColor, surfaceAlpha);
 }

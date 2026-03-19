@@ -7,9 +7,14 @@ in vec2 TexCoords;
 uniform sampler2D gPosition;
 uniform sampler2D gNormalRoughness;
 uniform sampler2D gAlbedoMetallic;
+uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
 
 uniform vec3 camPos;
 uniform int debugView;
+uniform int iblEnabled = 0;
+uniform float prefilterMaxLod = 4.0;
 
 const float PI = 3.14159265359;
 const int MAX_DEFERRED_LIGHTS = 8;
@@ -63,9 +68,15 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
 void main()
 {
-    vec3 WorldPos = texture(gPosition, TexCoords).rgb;
+    vec4 positionAo = texture(gPosition, TexCoords);
+    vec3 WorldPos = positionAo.rgb;
     vec4 normalRoughness = texture(gNormalRoughness, TexCoords);
     vec4 albedoMetallic = texture(gAlbedoMetallic, TexCoords);
 
@@ -80,6 +91,7 @@ void main()
     // G-Buffer albedo is already stored in linear space.
     vec3 albedo = albedoMetallic.rgb;
     float metallic = clamp(albedoMetallic.a, 0.0, 1.0);
+    float ao = positionAo.a;
 
     if (debugView == 1)
     {
@@ -141,7 +153,23 @@ void main()
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.03) * albedo;
+    vec3 ambient = vec3(0.03) * albedo * ao;
+    if (iblEnabled != 0)
+    {
+        vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+        vec3 kS = F;
+        vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+        vec3 irradiance = texture(irradianceMap, N).rgb;
+        vec3 diffuse = irradiance * albedo;
+
+        vec3 R = reflect(-V, N);
+        vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * prefilterMaxLod).rgb;
+        vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+        vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+
+        ambient = (kD * diffuse + specular) * ao;
+    }
+
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));

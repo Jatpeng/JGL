@@ -6,7 +6,10 @@
 
 #ifdef _WIN32
 #  include <cstdint>
+#  include <cstdlib>
 #  include <filesystem>
+#  include <optional>
+#  include <set>
 #  include <vector>
 #endif
 
@@ -108,6 +111,145 @@ namespace nrender
       module = LoadLibraryA("renderdoc.dll");
       if (module != nullptr && owns_module)
         *owns_module = true;
+
+      if (module != nullptr)
+        return module;
+
+      auto query_registry_string = [](HKEY root, const wchar_t* subkey, const wchar_t* value_name) -> std::wstring
+      {
+        DWORD byte_count = 0;
+        LONG result = RegGetValueW(root, subkey, value_name, RRF_RT_REG_SZ, nullptr, nullptr, &byte_count);
+        if (result != ERROR_SUCCESS || byte_count <= sizeof(wchar_t))
+          return {};
+
+        std::wstring value(byte_count / sizeof(wchar_t), L'\0');
+        result = RegGetValueW(root, subkey, value_name, RRF_RT_REG_SZ, nullptr, value.data(), &byte_count);
+        if (result != ERROR_SUCCESS)
+          return {};
+
+        value.resize((byte_count / sizeof(wchar_t)) - 1);
+        return value;
+      };
+
+      auto sanitize_registry_path = [](std::wstring value) -> std::filesystem::path
+      {
+        if (value.empty())
+          return {};
+
+        const size_t comma_pos = value.find(L',');
+        if (comma_pos != std::wstring::npos)
+          value = value.substr(0, comma_pos);
+
+        if (value.size() >= 2 && value.front() == L'"' && value.back() == L'"')
+          value = value.substr(1, value.size() - 2);
+
+        std::filesystem::path path(value);
+        if (path.has_filename() && path.filename() != L"renderdoc.dll")
+          path = path.parent_path() / L"renderdoc.dll";
+        else if (!path.has_extension())
+          path /= L"renderdoc.dll";
+
+        return path.lexically_normal();
+      };
+
+      auto add_candidate = [](std::vector<std::filesystem::path>* candidates,
+                              std::set<std::wstring>* dedupe,
+                              const std::filesystem::path& candidate)
+      {
+        if (!candidates || !dedupe || candidate.empty())
+          return;
+
+        const std::filesystem::path normalized = candidate.lexically_normal();
+        const std::wstring key = normalized.native();
+        if (dedupe->insert(key).second)
+          candidates->push_back(normalized);
+      };
+
+      auto add_directory_candidate = [&](std::vector<std::filesystem::path>* candidates,
+                                         std::set<std::wstring>* dedupe,
+                                         const std::filesystem::path& directory)
+      {
+        if (directory.empty())
+          return;
+
+        add_candidate(candidates, dedupe, directory / L"RenderDoc" / L"renderdoc.dll");
+        add_candidate(candidates, dedupe, directory / L"renderdoc.dll");
+      };
+
+      auto parse_env_path = [](const char* env_name) -> std::optional<std::filesystem::path>
+      {
+        const char* value = std::getenv(env_name);
+        if (!value || value[0] == '\0')
+          return std::nullopt;
+
+        std::filesystem::path path(value);
+        if (!path.has_filename() || !path.has_extension())
+          path /= "renderdoc.dll";
+        return path.lexically_normal();
+      };
+
+      auto parse_env_directory = [](const char* env_name) -> std::optional<std::filesystem::path>
+      {
+        const char* value = std::getenv(env_name);
+        if (!value || value[0] == '\0')
+          return std::nullopt;
+
+        return std::filesystem::path(value).lexically_normal();
+      };
+
+      std::vector<std::filesystem::path> candidates;
+      std::set<std::wstring> dedupe;
+
+      if (const auto env_dll = parse_env_path("RENDERDOC_DLL"))
+        add_candidate(&candidates, &dedupe, *env_dll);
+      if (const auto env_path = parse_env_path("RENDERDOC_PATH"))
+        add_candidate(&candidates, &dedupe, *env_path);
+
+      if (const auto program_files = parse_env_directory("ProgramFiles"))
+        add_directory_candidate(&candidates, &dedupe, *program_files);
+      if (const auto program_files_x86 = parse_env_directory("ProgramFiles(x86)"))
+        add_directory_candidate(&candidates, &dedupe, *program_files_x86);
+
+      constexpr const wchar_t* registry_keys[] = {
+        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\RenderDoc",
+        L"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\RenderDoc"
+      };
+
+      for (const auto* key : registry_keys)
+      {
+        add_candidate(
+          &candidates,
+          &dedupe,
+          sanitize_registry_path(query_registry_string(HKEY_LOCAL_MACHINE, key, L"InstallLocation")));
+        add_candidate(
+          &candidates,
+          &dedupe,
+          sanitize_registry_path(query_registry_string(HKEY_LOCAL_MACHINE, key, L"DisplayIcon")));
+        add_candidate(
+          &candidates,
+          &dedupe,
+          sanitize_registry_path(query_registry_string(HKEY_CURRENT_USER, key, L"InstallLocation")));
+        add_candidate(
+          &candidates,
+          &dedupe,
+          sanitize_registry_path(query_registry_string(HKEY_CURRENT_USER, key, L"DisplayIcon")));
+      }
+
+      for (const auto& candidate : candidates)
+      {
+        std::error_code error;
+        if (!std::filesystem::exists(candidate, error) || error)
+          continue;
+
+        module = LoadLibraryW(candidate.c_str());
+        if (module != nullptr)
+        {
+          if (owns_module)
+            *owns_module = true;
+          std::cout << "[RenderDoc] Loaded from: " << candidate.string() << std::endl;
+          return module;
+        }
+      }
 
       return module;
     }

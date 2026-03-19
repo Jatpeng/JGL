@@ -12,6 +12,7 @@ namespace nrender
     ~IBLPipeline();
 
     bool init();
+    bool build_from_cubemap(uint32_t cubemap_texture);
     bool load_environment_map(const std::string& filepath);
 
     uint32_t get_environment_cubemap() const { return mEnvironmentCubemap; }
@@ -20,6 +21,8 @@ namespace nrender
     uint32_t get_brdf_lut() const { return mBrdfLUTTexture; }
 
   private:
+    void destroy_generated_textures();
+    bool generate_ibl_maps();
     void setup_cube();
     void setup_quad();
     void render_cube();
@@ -29,6 +32,7 @@ namespace nrender
     uint32_t mIrradianceMap = 0;
     uint32_t mPrefilterMap = 0;
     uint32_t mBrdfLUTTexture = 0;
+    bool mOwnsEnvironmentCubemap = false;
 
     uint32_t mCaptureFBO = 0;
     uint32_t mCaptureRBO = 0;

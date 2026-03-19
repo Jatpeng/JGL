@@ -58,15 +58,19 @@ public:
 		}
 	}
 	bool update_shader_params(nshaders::Shader* shader);
+	bool update_shader_params(nshaders::Shader* shader, int texture_unit_offset);
 	bool set_param(string name,string type,string value);
+	glm::vec2 StringtoFloat2(std::string str);
 	glm::vec3 StringtoFloat3(std::string str);
 	string getshaderPath() { return mshader_path; }
 	inline bool isMultyPass() { return mMultipass; }
 	inline map<string, float>& getFloatMap() { return mFloat_map; }
+	inline map<string, glm::vec2>& getFloat2Map() { return mFloat2_map; }
 	inline map<string, glm::vec3>& getFloat3Map() { return mFloat3_map; }
 	inline map<string, pair<unsigned int, string>>& getTextureMap(){ return mTexture_map; }
 	inline vector<Param>& getEngineParams() { return mEngineParams; }
 	inline map<string, float>& getEngineFloatMap() { return mEngineFloat_map; }
+	inline map<string, glm::vec2>& getEngineFloat2Map() { return mEngineFloat2_map; }
 	inline map<string, glm::vec3>& getEngineFloat3Map() { return mEngineFloat3_map; }
 	inline map<string, pair<unsigned int, string>>& getEngineTextureMap() { return mEngineTexture_map; }
 	inline int passcount() { return mPassCount; }
@@ -76,9 +80,11 @@ public:
 	string name;
 	map<string,pair<unsigned int,string>> mTexture_map;
 	map<string, float> mFloat_map;
+	map<string, glm::vec2> mFloat2_map;
 	map<string, glm::vec3> mFloat3_map;
 	map<string,pair<unsigned int,string>> mEngineTexture_map;
 	map<string, float> mEngineFloat_map;
+	map<string, glm::vec2> mEngineFloat2_map;
 	map<string, glm::vec3> mEngineFloat3_map;
 	bool mMultipass;
 	string mshader_path;
