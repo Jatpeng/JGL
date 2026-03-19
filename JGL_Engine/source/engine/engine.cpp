@@ -5,6 +5,7 @@
 #include "engine/render_engine.h"
 #include "engine/resource_manager.h"
 #include "window/jgl_window.h"
+#include "window/window_overlay.h"
 
 namespace nengine
 {
@@ -15,6 +16,9 @@ namespace nengine
 
   Engine::~Engine()
   {
+    if (mWindow)
+      mWindow->set_overlay(nullptr);
+
     if (mWindow)
       mWindow->set_scene(nullptr);
 
@@ -39,6 +43,8 @@ namespace nengine
       mWindow.reset();
       return false;
     }
+
+    mWindow->set_overlay(mWindowOverlay);
 
     if (auto* renderer = render_engine())
       renderer->set_plane_show(mCreateInfo.show_plane);
@@ -84,6 +90,13 @@ namespace nengine
       mWindow->set_scene(mActiveScene);
   }
 
+  void Engine::set_window_overlay(std::shared_ptr<nwindow::IWindowOverlay> overlay)
+  {
+    mWindowOverlay = std::move(overlay);
+    if (mWindow)
+      mWindow->set_overlay(mWindowOverlay);
+  }
+
   RenderEngine* Engine::render_engine() const
   {
     return mWindow ? mWindow->get_engine() : nullptr;
@@ -94,8 +107,8 @@ namespace nengine
     auto scene = create_scene("default");
 
     auto mesh = scene->create_mesh("cube");
-    mesh->get_component<MeshComponent>()->set_model("Assets/cube.fbx");
-    mesh->get_component<MeshComponent>()->set_material("Assets/PBR.xml");
+    mesh->get_component<MeshComponent>()->set_model("Assets/models/cube.fbx");
+    mesh->get_component<MeshComponent>()->set_material("Assets/materials/PBR.xml");
 
     auto light = scene->create_light("main_light");
     light->get_component<TransformComponent>()->position = glm::vec3(1.5f, 3.5f, 3.0f);

@@ -2,6 +2,8 @@
 
 #include "jgl_window.h"
 #include "elems/input.h"
+#include "render/opengl_context.h"
+#include "render/renderdoc_capture.h"
 
 #ifdef _WIN32
 #  ifndef GLFW_EXPOSE_NATIVE_WIN32
@@ -37,26 +39,23 @@ namespace nwindow
 
     mRenderDocCapture = std::make_shared<nrender::RenderDocCapture>();
     mRenderCtx->init(this);
-    mUICtx->init(this);
 
     auto resolved_engine_info = engine_info;
     resolved_engine_info.render_target_size = { width, height };
     resolved_engine_info.renderdoc_capture = mRenderDocCapture;
 
     mEngine = std::make_shared<nengine::RenderEngine>(resolved_engine_info);
-    mSceneView = std::make_unique<nui::SceneView>(mEngine);
-    mPropertyPanel = std::make_unique<nui::Property_Panel>();
+
+    if (mOverlay)
+      mOverlay->on_attach(*this);
 
     return mIsRunning;
   }
 
   GLWindow::~GLWindow()
   {
-    mPropertyPanel.reset();
-    mSceneView.reset();
+    set_overlay(nullptr);
     mEngine.reset();
-
-    mUICtx->end();
     mRenderCtx->end();
   }
 
@@ -99,16 +98,13 @@ namespace nwindow
     // Clear the view
     mRenderCtx->pre_render();
 
-    // Initialize UI components
-    mUICtx->pre_render();
-
-    if (mSceneView)
-      mSceneView->render();
-    if (mPropertyPanel)
-      mPropertyPanel->render(mEngine.get());
-
-    // Render the UI 
-    mUICtx->post_render();
+    if (mOverlay)
+    {
+      mOverlay->begin_frame();
+      if (mEngine)
+        mOverlay->render(*mEngine);
+      mOverlay->end_frame();
+    }
 
     // Render end, swap buffers
     mRenderCtx->post_render();
@@ -148,12 +144,24 @@ namespace nwindow
       mEngine->on_mouse_move(x, y, nelems::Input::GetPressedButton(mWindow));
   }
 
+  void GLWindow::set_overlay(std::shared_ptr<IWindowOverlay> overlay)
+  {
+    if (mOverlay == overlay)
+      return;
+
+    if (mOverlay && mWindow)
+      mOverlay->on_detach();
+
+    mOverlay = std::move(overlay);
+
+    if (mOverlay && mWindow)
+      mOverlay->on_attach(*this);
+  }
+
   void GLWindow::set_scene(std::shared_ptr<nengine::Scene> scene)
   {
     if (mEngine)
       mEngine->set_scene(std::move(scene));
-    if (mSceneView)
-      mSceneView->set_scene(mEngine ? mEngine->get_scene() : nullptr);
   }
 
   std::shared_ptr<nengine::Scene> GLWindow::get_scene() const

@@ -42,10 +42,21 @@ file(GLOB_RECURSE PYTHON_BINDING_SOURCES
     ${SRC_ROOT}/python/*.cpp
 )
 
+file(GLOB_RECURSE EDITOR_SOURCES
+    CONFIGURE_DEPENDS
+    ${SRC_ROOT}/editor/*.cpp
+    ${SRC_ROOT}/ui/*.cpp
+)
+
+list(APPEND EDITOR_SOURCES
+    ${SRC_ROOT}/render/ui_context.cpp
+)
+
 list(REMOVE_ITEM CORE_SOURCES ${APP_3RDPARTY_SOURCES})
 list(REMOVE_ITEM CORE_SOURCES ${SRC_ROOT}/main.cpp)
 list(REMOVE_ITEM CORE_SOURCES ${SRC_ROOT}/elems/mian.cpp)
 list(REMOVE_ITEM CORE_SOURCES ${PYTHON_BINDING_SOURCES})
+list(REMOVE_ITEM CORE_SOURCES ${EDITOR_SOURCES})
 
 set(IMGUI_CORE_SOURCES
     ${SRC_ROOT}/3rdparty/imgui-docking/imgui.cpp
@@ -67,8 +78,6 @@ set(STB_SOURCES
 
 add_library(jgl_core STATIC
     ${CORE_SOURCES}
-    ${IMGUI_CORE_SOURCES}
-    ${IMGUI_BACKEND_SOURCES}
     ${STB_SOURCES}
 )
 
@@ -76,13 +85,17 @@ set_target_properties(jgl_core PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
+set(JGL_PUBLIC_INCLUDE_DIRS
+    ${JGL_ENGINE_DIR}/source
+    ${JGL_ENGINE_DIR}/include
+    ${JGL_ENGINE_DIR}/source/3rdparty/imgui-docking
+    ${JGL_ENGINE_DIR}/source/3rdparty/imgui-docking/backends
+    ${CMAKE_CURRENT_SOURCE_DIR}/STB_IMAGE
+)
+
 target_include_directories(jgl_core
     PUBLIC
-        ${JGL_ENGINE_DIR}/source
-        ${JGL_ENGINE_DIR}/include
-        ${JGL_ENGINE_DIR}/source/3rdparty/imgui-docking
-        ${JGL_ENGINE_DIR}/source/3rdparty/imgui-docking/backends
-        ${CMAKE_CURRENT_SOURCE_DIR}/STB_IMAGE
+        ${JGL_PUBLIC_INCLUDE_DIRS}
 )
 
 find_package(OpenGL REQUIRED)
@@ -183,11 +196,42 @@ if(MSVC)
     )
 endif()
 
+add_library(jgl_editor STATIC
+    ${EDITOR_SOURCES}
+    ${IMGUI_CORE_SOURCES}
+    ${IMGUI_BACKEND_SOURCES}
+)
+
+set_target_properties(jgl_editor PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
+
+target_include_directories(jgl_editor
+    PUBLIC
+        ${JGL_PUBLIC_INCLUDE_DIRS}
+)
+
+if(JGL_PLATFORM_INCLUDE_DIRS)
+    target_include_directories(jgl_editor PUBLIC ${JGL_PLATFORM_INCLUDE_DIRS})
+endif()
+
+target_link_libraries(jgl_editor
+    PUBLIC
+        jgl_core
+)
+
+if(MSVC)
+    target_compile_options(jgl_editor PRIVATE /FS)
+    target_precompile_headers(jgl_editor PRIVATE
+        ${JGL_ENGINE_DIR}/source/pch.h
+    )
+endif()
+
 add_executable(JGL_Engine
     ${SRC_ROOT}/main.cpp
 )
 
-target_link_libraries(JGL_Engine PRIVATE jgl_core)
+target_link_libraries(JGL_Engine PRIVATE jgl_core jgl_editor)
 
 set_target_properties(JGL_Engine PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

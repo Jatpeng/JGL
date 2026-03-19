@@ -3,7 +3,6 @@
 #include "ui_context.h"
 
 #include "imgui.h"
-#include "imgui_internal.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
@@ -68,50 +67,10 @@ namespace nrender
 
   void UIContext::pre_render()
   {
-
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    // Create the docking environment
-    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
-      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
-      ImGuiWindowFlags_NoBackground;
-
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->Pos);
-    ImGui::SetNextWindowSize(viewport->Size);
-    ImGui::SetNextWindowViewport(viewport->ID);
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::Begin("InvisibleWindow", nullptr, windowFlags);
-    ImGui::PopStyleVar(3);
-
-    ImGuiID dockSpaceId = ImGui::GetID("InvisibleWindowDockSpace");
-
-    ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-
-    // 首次运行时用 DockBuilder 固定布局：左侧 Properties，右侧 Scene 占满主区域
-    static bool layoutDone = false;
-    if (!layoutDone)
-    {
-      layoutDone = true;
-      ImGui::DockBuilderRemoveNode(dockSpaceId);
-      ImGuiID mainId = ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
-      ImGui::DockBuilderSetNodeSize(mainId, viewport->Size);
-      ImGuiID leftId = 0, rightId = 0;
-      ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Left, 0.22f, &leftId, &rightId);
-      ImGui::DockBuilderDockWindow("Properties", leftId);
-      ImGui::DockBuilderDockWindow("Scene", rightId);
-      ImGui::DockBuilderFinish(dockSpaceId);
-    }
-
-    ImGui::End();
-
   }
 
   void UIContext::post_render()

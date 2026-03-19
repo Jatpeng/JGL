@@ -2,12 +2,14 @@
 
 #include "engine/render_engine.h"
 #include "engine/scene.h"
-#include "render/ui_context.h"
 #include "render/opengl_context.h"
-#include "render/renderdoc_capture.h"
 #include "window/window.h"
-#include "ui/property_panel.h"
-#include "ui/scene_view.h"
+#include "window/window_overlay.h"
+
+namespace nrender
+{
+  class RenderDocCapture;
+}
 
 namespace nwindow
 {
@@ -18,7 +20,6 @@ namespace nwindow
     GLWindow() :
       mIsRunning(true), mWindow(nullptr)
     {
-      mUICtx = std::make_unique<nrender::UIContext>();
       mRenderCtx = std::make_unique<nrender::OpenGL_Context>();
     }
 
@@ -52,18 +53,17 @@ namespace nwindow
     bool is_running() { return mIsRunning; }
 
     nengine::RenderEngine* get_engine() const { return mEngine.get(); }
+    void set_overlay(std::shared_ptr<IWindowOverlay> overlay);
     void set_scene(std::shared_ptr<nengine::Scene> scene);
     std::shared_ptr<nengine::Scene> get_scene() const;
 
   private:
     GLFWwindow* mWindow;
 
-    std::unique_ptr<nrender::UIContext> mUICtx;
     std::unique_ptr<nrender::OpenGL_Context> mRenderCtx;
     std::shared_ptr<nrender::RenderDocCapture> mRenderDocCapture;
     std::shared_ptr<nengine::RenderEngine> mEngine;
-    std::unique_ptr<nui::Property_Panel> mPropertyPanel;
-    std::unique_ptr<nui::SceneView> mSceneView;
+    std::shared_ptr<IWindowOverlay> mOverlay;
 
     bool mIsRunning;
   };

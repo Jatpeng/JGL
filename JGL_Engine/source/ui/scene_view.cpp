@@ -29,8 +29,23 @@ namespace nui
   }
 
   SceneView::SceneView(std::shared_ptr<nengine::RenderEngine> engine)
-    : mEngine(std::move(engine))
+    : mEngine(engine.get())
   {
+  }
+
+  SceneView::SceneView(nengine::RenderEngine* engine)
+    : mEngine(engine)
+  {
+  }
+
+  void SceneView::set_engine(std::shared_ptr<nengine::RenderEngine> engine)
+  {
+    mEngine = engine.get();
+  }
+
+  void SceneView::set_engine(nengine::RenderEngine* engine)
+  {
+    mEngine = engine;
   }
 
   void SceneView::set_scene(std::shared_ptr<nengine::Scene> scene)

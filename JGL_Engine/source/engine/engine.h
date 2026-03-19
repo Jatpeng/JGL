@@ -9,6 +9,7 @@
 namespace nwindow
 {
   class GLWindow;
+  class IWindowOverlay;
 }
 
 namespace nengine
@@ -48,6 +49,7 @@ namespace nengine
     std::shared_ptr<Scene> create_scene(const std::string& name);
     void set_active_scene(std::shared_ptr<Scene> scene);
     std::shared_ptr<Scene> active_scene() const { return mActiveScene; }
+    void set_window_overlay(std::shared_ptr<nwindow::IWindowOverlay> overlay);
 
     RenderEngine* render_engine() const;
     bool is_initialized() const { return mInitialized; }
@@ -60,6 +62,7 @@ namespace nengine
     bool mInitialized = false;
     std::shared_ptr<ResourceManager> mResources;
     std::unique_ptr<nwindow::GLWindow> mWindow;
+    std::shared_ptr<nwindow::IWindowOverlay> mWindowOverlay;
     std::vector<std::shared_ptr<Scene>> mScenes;
     std::shared_ptr<Scene> mActiveScene;
   };
