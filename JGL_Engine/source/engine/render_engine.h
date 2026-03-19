@@ -109,6 +109,7 @@ namespace nengine
     void geometry_pass();
     void lighting_pass();
     void shadow_pass();
+
     void forward_overlay_pass();
 
     bool is_mesh_deferred_available(const MeshComponent& mesh_comp) const;
@@ -163,5 +164,34 @@ namespace nengine
     unsigned int mShadowMapTexture = 0;
     const unsigned int SHADOW_WIDTH = 2048;
     const unsigned int SHADOW_HEIGHT = 2048;
+
+    unsigned int mShadowMapFBO_id = 0;
+    std::unique_ptr<nshaders::Shader> mDepthShader;
+    glm::mat4 mLightSpaceMatrix;
+    unsigned int mShadowMapTexture = 0;
+    const unsigned int SHADOW_WIDTH = 2048;
+    const unsigned int SHADOW_HEIGHT = 2048;
+
+    unsigned int mShadowMapFBO_id = 0;
+    std::unique_ptr<nshaders::Shader> mDepthShader;
+    glm::mat4 mLightSpaceMatrix;
+    unsigned int mShadowMapTexture = 0;
+    unsigned int SHADOW_WIDTH = 2048;
+    unsigned int SHADOW_HEIGHT = 2048;
+
+    unsigned int mShadowMapFBO_id = 0;
+    std::unique_ptr<nshaders::Shader> mDepthShader;
+    glm::mat4 mLightSpaceMatrix;
+    unsigned int mShadowMapTexture = 0;
+    const unsigned int SHADOW_WIDTH = 2048;
+    const unsigned int SHADOW_HEIGHT = 2048;
+
+    unsigned int mShadowMapFBO_id = 0;
+    std::unique_ptr<nshaders::Shader> mDepthShader;
+    glm::mat4 mLightSpaceMatrix;
+    unsigned int mShadowMapTexture = 0;
+    const unsigned int SHADOW_WIDTH = 2048;
+    const unsigned int SHADOW_HEIGHT = 2048;
+
   };
 }

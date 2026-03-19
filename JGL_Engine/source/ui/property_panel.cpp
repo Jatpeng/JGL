@@ -56,16 +56,14 @@ namespace nui
 
     std::optional<std::string> open_native_file_dialog(const wchar_t* title, const wchar_t* filter)
     {
-<<<<<<< HEAD
       OPENFILENAMEW dialog;
       ZeroMemory(&dialog, sizeof(dialog));
-=======
 #ifdef _WIN32
       std::array<wchar_t, 4096> filename = {};
       const std::wstring initial_dir = wide_from_narrow(FileSystem::getPath(""));
       OPENFILENAMEW dialog = {};
       dialog.lStructSize = sizeof(dialog);
->>>>>>> origin/master
+
       dialog.hwndOwner = GetActiveWindow();
       dialog.lStructSize = sizeof(dialog);
       std::array<wchar_t, MAX_PATH> filename = { 0 };
