@@ -6,6 +6,8 @@
 #include "render/deferred_gbuffer.h"
 #include "render/opengl_buffer_manager.h"
 #include "shader/shader_util.h"
+#include "render/post_process/post_process_stack.h"
+#include "render/ibl/ibl_pipeline.h"
 
 namespace nrender
 {
@@ -106,6 +108,7 @@ namespace nengine
     void render_deferred_to_framebuffer();
     void geometry_pass();
     void lighting_pass();
+    void shadow_pass();
     void forward_overlay_pass();
 
     bool is_mesh_deferred_available(const MeshComponent& mesh_comp) const;
@@ -153,5 +156,12 @@ namespace nengine
     unsigned int mFallbackWhiteTexture = 0;
     unsigned int mFallbackBlackTexture = 0;
     unsigned int mFallbackNormalTexture = 0;
+
+    unsigned int mShadowMapFBO_id = 0;
+    std::unique_ptr<nshaders::Shader> mDepthShader;
+    glm::mat4 mLightSpaceMatrix;
+    unsigned int mShadowMapTexture = 0;
+    const unsigned int SHADOW_WIDTH = 2048;
+    const unsigned int SHADOW_HEIGHT = 2048;
   };
 }

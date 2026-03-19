@@ -289,7 +289,8 @@ namespace nengine
     return texture_map.find("baseMap") != texture_map.end() &&
            texture_map.find("metallicMap") != texture_map.end() &&
            texture_map.find("roughnessMap") != texture_map.end() &&
-           texture_map.find("normalMap") != texture_map.end();
+           texture_map.find("normalMap") != texture_map.end() &&
+           texture_map.find("aoMap") != texture_map.end();
   }
 
   void RenderEngine::render_mesh_object(

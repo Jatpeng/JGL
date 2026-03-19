@@ -28,21 +28,17 @@ namespace nengine
   public:
     struct CreateInfo
     {
-      int width;
-      int height;
-      std::string title;
-      bool create_default_scene;
-      bool show_plane;
-
-      CreateInfo() :
-        width(1024),
-        height(720),
-        title("JGL_Engine"),
-        create_default_scene(true),
-        show_plane(false) {}
+      int width = 1024;
+      int height = 720;
+      std::string title = "JGL_Engine";
+      bool create_default_scene = true;
+      bool show_plane = false;
+      CreateInfo() {}
     };
 
-    explicit Engine(const CreateInfo& create_info = CreateInfo());
+
+    explicit Engine(const CreateInfo& create_info = CreateInfo{});
+
     ~Engine();
 
     bool init();
