@@ -11,6 +11,8 @@
 #include "elems/material.h"
 #include "elems/model.h"
 #include "engine/resource_manager.h"
+#include "engine/core/entity.h"
+#include "engine/core/transform.h"
 #include "shader/shader_util.h"
 
 namespace nengine
@@ -65,34 +67,18 @@ namespace nengine
     }
   }
 
-  glm::mat4 Transform::local_matrix() const
-  {
-    glm::mat4 result { 1.0f };
-    result = glm::translate(result, position);
-    result = glm::rotate(result, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    result = glm::rotate(result, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    result = glm::rotate(result, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    result = glm::scale(result, scale);
-    return result;
-  }
-
-  SceneObject::SceneObject(uint64_t id, std::string name)
-    : mId(id), mName(std::move(name))
+  MeshComponent::MeshComponent(std::shared_ptr<IResourceManager> resources)
+    : mResources(std::move(resources))
   {
   }
 
-  MeshObject::MeshObject(uint64_t id, std::string name, std::shared_ptr<IResourceManager> resources)
-    : SceneObject(id, std::move(name)), mResources(std::move(resources))
-  {
-  }
-
-  MeshObject::~MeshObject()
+  MeshComponent::~MeshComponent()
   {
     if (mShader && mShader->get_program_id() != 0)
       mShader->unload();
   }
 
-  bool MeshObject::set_model(const std::string& path)
+  bool MeshComponent::set_model(const std::string& path)
   {
     auto resources = mResources.lock();
     if (!resources)
@@ -126,7 +112,7 @@ namespace nengine
     return true;
   }
 
-  bool MeshObject::set_material(const std::string& path)
+  bool MeshComponent::set_material(const std::string& path)
   {
     auto resources = mResources.lock();
     if (!resources)
@@ -158,7 +144,7 @@ namespace nengine
     return set_shader(mMaterial->getshaderPath());
   }
 
-  bool MeshObject::set_shader(const std::string& path)
+  bool MeshComponent::set_shader(const std::string& path)
   {
     auto resources = mResources.lock();
     if (!resources)
@@ -193,13 +179,13 @@ namespace nengine
     return true;
   }
 
-  void MeshObject::tick(float delta_time)
+  void MeshComponent::tick(float delta_time)
   {
     if (mAnimator)
       mAnimator->UpdateAnimation(delta_time);
   }
 
-  void MeshObject::apply_skinning(nshaders::Shader* shader) const
+  void MeshComponent::apply_skinning(nshaders::Shader* shader) const
   {
     if (!shader || shader->get_program_id() == 0)
       return;
@@ -213,55 +199,69 @@ namespace nengine
       shader->set_mat4(transforms[i], "finalBonesMatrices[" + std::to_string(i) + "]");
   }
 
-  LightObject::LightObject(uint64_t id, std::string name)
-    : SceneObject(id, std::move(name))
-  {
-  }
-
   Scene::Scene(std::string name, std::shared_ptr<IResourceManager> resources)
     : mName(std::move(name)), mResources(std::move(resources))
   {
   }
 
-  std::shared_ptr<MeshObject> Scene::create_mesh(const std::string& name)
+  std::shared_ptr<Entity> Scene::create_entity(const std::string& name)
   {
-    auto object = std::make_shared<MeshObject>(gNextSceneObjectId.fetch_add(1), name, mResources.lock());
-    mObjects.push_back(object);
-    return object;
+    auto entity = std::make_shared<Entity>(gNextSceneObjectId.fetch_add(1), name);
+    entity->add_component<TransformComponent>();
+    mEntities.push_back(entity);
+    return entity;
   }
 
-  std::shared_ptr<LightObject> Scene::create_light(const std::string& name)
+  std::shared_ptr<Entity> Scene::create_mesh(const std::string& name)
   {
-    auto object = std::make_shared<LightObject>(gNextSceneObjectId.fetch_add(1), name);
-    mObjects.push_back(object);
-    return object;
+    auto entity = create_entity(name);
+    entity->add_component<MeshComponent>(mResources.lock());
+    return entity;
   }
 
-  void Scene::remove_object(uint64_t id)
+  std::shared_ptr<Entity> Scene::create_light(const std::string& name)
   {
-    mObjects.erase(
-      std::remove_if(mObjects.begin(), mObjects.end(), [id](const std::shared_ptr<SceneObject>& object)
+    auto entity = create_entity(name);
+    entity->add_component<LightComponent>();
+    return entity;
+  }
+
+  void Scene::remove_entity(uint64_t id)
+  {
+    mEntities.erase(
+      std::remove_if(mEntities.begin(), mEntities.end(), [id](const std::shared_ptr<Entity>& entity)
       {
-        return object && object->id() == id;
+        return entity && entity->id() == id;
       }),
-      mObjects.end());
+      mEntities.end());
   }
 
-  std::shared_ptr<SceneObject> Scene::find_object(uint64_t id) const
+  std::shared_ptr<Entity> Scene::find_entity(uint64_t id) const
   {
-    const auto it = std::find_if(mObjects.begin(), mObjects.end(), [id](const std::shared_ptr<SceneObject>& object)
+    const auto it = std::find_if(mEntities.begin(), mEntities.end(), [id](const std::shared_ptr<Entity>& entity)
     {
-      return object && object->id() == id;
+      return entity && entity->id() == id;
     });
-    return it != mObjects.end() ? *it : nullptr;
+    return it != mEntities.end() ? *it : nullptr;
   }
 
-  std::shared_ptr<SceneObject> Scene::find_object(const std::string& name) const
+  std::shared_ptr<Entity> Scene::find_entity(const std::string& name) const
   {
-    const auto it = std::find_if(mObjects.begin(), mObjects.end(), [&name](const std::shared_ptr<SceneObject>& object)
+    const auto it = std::find_if(mEntities.begin(), mEntities.end(), [&name](const std::shared_ptr<Entity>& entity)
     {
-      return object && object->name() == name;
+      return entity && entity->name() == name;
     });
-    return it != mObjects.end() ? *it : nullptr;
+    return it != mEntities.end() ? *it : nullptr;
+  }
+
+  void Scene::tick(float delta_time)
+  {
+    for (auto& entity : mEntities)
+    {
+      if (auto mesh_comp = entity->get_component<MeshComponent>())
+      {
+        mesh_comp->tick(delta_time);
+      }
+    }
   }
 }

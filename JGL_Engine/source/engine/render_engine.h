@@ -37,17 +37,19 @@ namespace nengine
 
     struct CreateInfo
     {
-      glm::ivec2 render_target_size = { 800, 600 };
-      bool load_default_skybox = true;
-      bool load_default_plane = true;
+      glm::ivec2 render_target_size;
+      bool load_default_skybox;
+      bool load_default_plane;
       std::shared_ptr<IResourceManager> resource_manager;
       std::shared_ptr<nrender::RenderDocCapture> renderdoc_capture;
-      CreateInfo() {}
+
+      CreateInfo() :
+        render_target_size(800, 600),
+        load_default_skybox(true),
+        load_default_plane(true) {}
     };
 
-
-    explicit RenderEngine(const CreateInfo& create_info = CreateInfo{});
-
+    explicit RenderEngine(const CreateInfo& create_info = CreateInfo());
     ~RenderEngine();
 
     void resize(int32_t width, int32_t height);
@@ -107,14 +109,11 @@ namespace nengine
     void geometry_pass();
     void lighting_pass();
     void shadow_pass();
-    void shadow_pass();
-    void shadow_pass();
-    void shadow_pass();
-    void shadow_pass();
+
     void forward_overlay_pass();
 
-    bool is_mesh_deferred_available(const MeshObject& mesh_object) const;
-    void render_mesh_object(MeshObject& mesh_object, nshaders::Shader* shader, bool update_lighting, bool allow_multipass);
+    bool is_mesh_deferred_available(const MeshComponent& mesh_comp) const;
+    void render_mesh_object(Entity& entity, MeshComponent& mesh_comp, TransformComponent& transform_comp, nshaders::Shader* shader, bool update_lighting, bool allow_multipass);
     void render_scene_meshes_forward();
     void render_plane();
     void render_plane_deferred();
@@ -123,7 +122,7 @@ namespace nengine
     void render_fullscreen_quad();
 
     void upload_lights(nshaders::Shader* shader);
-    std::vector<std::shared_ptr<MeshObject>> collect_mesh_objects() const;
+    std::vector<std::shared_ptr<Entity>> collect_mesh_entities() const;
 
   private:
     std::unique_ptr<nelems::Camera> mCamera;
@@ -193,5 +192,6 @@ namespace nengine
     unsigned int mShadowMapTexture = 0;
     const unsigned int SHADOW_WIDTH = 2048;
     const unsigned int SHADOW_HEIGHT = 2048;
+
   };
 }

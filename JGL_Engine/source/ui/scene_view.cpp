@@ -140,11 +140,11 @@ namespace nui
     {
       int mesh_count = 0;
       int light_count = 0;
-      for (const auto& object : scene->objects())
+      for (const auto& entity : scene->entities())
       {
-        if (std::dynamic_pointer_cast<nengine::MeshObject>(object))
+        if (entity->get_component<nengine::MeshComponent>())
           ++mesh_count;
-        else if (std::dynamic_pointer_cast<nengine::LightObject>(object))
+        else if (entity->get_component<nengine::LightComponent>())
           ++light_count;
       }
 

@@ -49,7 +49,7 @@ namespace nengine
     }
   }
 
-  RenderEngine::RenderEngine(const CreateInfo& create_info)
+  RenderEngine::RenderEngine(const RenderEngine::CreateInfo& create_info)
   {
     mRenderTargetSize = create_info.render_target_size;
     if (mRenderTargetSize.x <= 0)
@@ -191,16 +191,16 @@ namespace nengine
       mCamera->reset();
   }
 
-  std::vector<std::shared_ptr<MeshObject>> RenderEngine::collect_mesh_objects() const
+  std::vector<std::shared_ptr<Entity>> RenderEngine::collect_mesh_entities() const
   {
-    std::vector<std::shared_ptr<MeshObject>> meshes;
+    std::vector<std::shared_ptr<Entity>> meshes;
     if (!mScene)
       return meshes;
 
-    for (const auto& object : mScene->objects())
+    for (const auto& entity : mScene->entities())
     {
-      if (auto mesh = std::dynamic_pointer_cast<MeshObject>(object))
-        meshes.push_back(mesh);
+      if (entity->get_component<MeshComponent>())
+        meshes.push_back(entity);
     }
 
     return meshes;
@@ -212,10 +212,9 @@ namespace nengine
     mDeltaTime = current_frame - mLastFrame;
     mLastFrame = current_frame;
 
-    for (const auto& mesh : collect_mesh_objects())
+    if (mScene)
     {
-      if (mesh)
-        mesh->tick(mDeltaTime);
+      mScene->tick(mDeltaTime);
     }
   }
 
@@ -279,10 +278,10 @@ namespace nengine
     mPlane->Draw();
   }
 
-  bool RenderEngine::is_mesh_deferred_available(const MeshObject& mesh_object) const
+  bool RenderEngine::is_mesh_deferred_available(const MeshComponent& mesh_comp) const
   {
-    const auto model = mesh_object.model();
-    const auto material = mesh_object.material();
+    const auto model = mesh_comp.model();
+    const auto material = mesh_comp.material();
     if (!model || !material)
       return false;
 
@@ -295,28 +294,30 @@ namespace nengine
   }
 
   void RenderEngine::render_mesh_object(
-    MeshObject& mesh_object,
+    Entity& entity,
+    MeshComponent& mesh_comp,
+    TransformComponent& transform_comp,
     nshaders::Shader* shader,
     bool update_lighting,
     bool allow_multipass)
   {
-    auto model = mesh_object.model();
-    auto material = mesh_object.material();
+    auto model = mesh_comp.model();
+    auto material = mesh_comp.material();
     if (!model || !shader || shader->get_program_id() == 0)
       return;
 
     shader->use();
     mCamera->update(shader);
-    shader->set_mat4(mesh_object.transform().local_matrix(), "model");
+    shader->set_mat4(transform_comp.local_matrix(), "model");
 
     if (update_lighting)
       upload_lights(shader);
 
-    mesh_object.apply_skinning(shader);
+    mesh_comp.apply_skinning(shader);
     shader->set_f1(static_cast<float>(glfwGetTime()), "time");
     shader->set_f1(mModelOpacity, "opacity");
 
-    if (allow_multipass && mesh_object.shader_name() == "fur" && material && material->isMultyPass())
+    if (allow_multipass && mesh_comp.shader_name() == "fur" && material && material->isMultyPass())
     {
       const int passcount = static_cast<int>(material->getFloatMap()["Pass"]);
       for (int i = 0; i < passcount; ++i)
@@ -335,16 +336,22 @@ namespace nengine
 
   void RenderEngine::render_scene_meshes_forward()
   {
-    for (const auto& mesh : collect_mesh_objects())
+    for (const auto& entity : collect_mesh_entities())
     {
-      if (!mesh)
+      if (!entity)
         continue;
 
-      auto* shader = mesh->shader();
+      auto mesh_comp = entity->get_component<MeshComponent>();
+      auto transform_comp = entity->get_component<TransformComponent>();
+
+      if (!mesh_comp || !transform_comp)
+        continue;
+
+      auto* shader = mesh_comp->shader();
       if (!shader || shader->get_program_id() == 0)
         continue;
 
-      render_mesh_object(*mesh, shader, true, true);
+      render_mesh_object(*entity, *mesh_comp, *transform_comp, shader, true, true);
     }
   }
 
@@ -355,13 +362,16 @@ namespace nengine
     if (mDeferredGeometryShader->get_program_id() == 0 || mDeferredLightingShader->get_program_id() == 0)
       return false;
 
-    const auto meshes = collect_mesh_objects();
-    if (meshes.empty())
+    const auto entities = collect_mesh_entities();
+    if (entities.empty())
       return false;
 
-    return std::all_of(meshes.begin(), meshes.end(), [this](const std::shared_ptr<MeshObject>& mesh)
+    return std::all_of(entities.begin(), entities.end(), [this](const std::shared_ptr<Entity>& entity)
     {
-      return mesh && is_mesh_deferred_available(*mesh);
+      if (!entity)
+        return false;
+      auto mesh_comp = entity->get_component<MeshComponent>();
+      return mesh_comp && is_mesh_deferred_available(*mesh_comp);
     });
   }
 
@@ -370,11 +380,18 @@ namespace nengine
     mGBuffer->bind_for_geometry_pass();
     if (!mModelTransparent)
     {
-      for (const auto& mesh : collect_mesh_objects())
+      for (const auto& entity : collect_mesh_entities())
       {
-        if (!mesh || !is_mesh_deferred_available(*mesh))
+        if (!entity)
           continue;
-        render_mesh_object(*mesh, mDeferredGeometryShader.get(), false, false);
+
+        auto mesh_comp = entity->get_component<MeshComponent>();
+        auto transform_comp = entity->get_component<TransformComponent>();
+
+        if (!mesh_comp || !transform_comp || !is_mesh_deferred_available(*mesh_comp))
+          continue;
+
+        render_mesh_object(*entity, *mesh_comp, *transform_comp, mDeferredGeometryShader.get(), false, false);
       }
     }
 
@@ -470,13 +487,14 @@ namespace nengine
 
     if (mScene)
     {
-      for (const auto& object : mScene->objects())
+      for (const auto& entity : mScene->entities())
       {
-        auto light = std::dynamic_pointer_cast<LightObject>(object);
-        if (!light || light_index >= kMaxDeferredLights)
+        auto light = entity->get_component<LightComponent>();
+        auto transform = entity->get_component<TransformComponent>();
+        if (!light || !transform || light_index >= kMaxDeferredLights)
           continue;
 
-        shader->set_vec3(light->transform().position, "lights[" + std::to_string(light_index) + "].position");
+        shader->set_vec3(transform->position, "lights[" + std::to_string(light_index) + "].position");
         shader->set_vec3(
           light->color() * light->strength(),
           "lights[" + std::to_string(light_index) + "].color");

@@ -16,6 +16,13 @@ namespace nengine
   class RenderEngine;
   class ResourceManager;
 
+  /**
+   * @brief 游戏引擎的核心管理类。
+   *
+   * 负责引擎的基础架构和主循环。管理所有子系统（Subsystems）的生命周期，
+   * 比如 RenderEngine, ResourceManager，并持有应用的主窗口（Window）。
+   * 同时也管理场景（Scene）的切换与更新。
+   */
   class Engine
   {
   public:
