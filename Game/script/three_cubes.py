@@ -17,8 +17,8 @@ positions = [
 
 for index, position in enumerate(positions):
     cube = scene.create_mesh(f"cube_{index}")
-    cube.set_model("Assets/cube.fbx")
-    cube.set_material("Assets/PBR.xml")
+    cube.set_model("Assets/models/cube.fbx")
+    cube.set_material("Assets/materials/PBR.xml")
     cube.transform.position = position
     cube.transform.scale = (1.0, 1.0, 1.0)
 

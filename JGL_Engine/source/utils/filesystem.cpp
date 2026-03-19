@@ -1,6 +1,7 @@
 #include "filesystem.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <optional>
 #include <string_view>
@@ -14,6 +15,55 @@
 
 namespace
 {
+    std::string toLowerCopy(std::string value)
+    {
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c)
+        {
+            return static_cast<char>(std::tolower(c));
+        });
+        return value;
+    }
+
+    std::optional<std::filesystem::path> categorizedAssetRelativePath(const std::filesystem::path& relative_path)
+    {
+        std::filesystem::path asset_filename;
+        const std::string generic_relative = relative_path.generic_string();
+
+        if (generic_relative.rfind("Assets/", 0) == 0)
+        {
+            const std::filesystem::path asset_suffix(generic_relative.substr(std::string("Assets/").size()));
+            if (asset_suffix.empty() || asset_suffix.has_parent_path())
+                return std::nullopt;
+
+            asset_filename = asset_suffix.filename();
+        }
+        else if (!relative_path.has_parent_path())
+        {
+            asset_filename = relative_path.filename();
+        }
+        else
+        {
+            return std::nullopt;
+        }
+
+        const std::string ext = toLowerCopy(asset_filename.extension().string());
+        if (ext == ".xml")
+            return std::filesystem::path("Assets/materials") / asset_filename;
+
+        if (ext == ".fbx" ||
+            ext == ".obj" ||
+            ext == ".dae" ||
+            ext == ".blend" ||
+            ext == ".gltf" ||
+            ext == ".glb" ||
+            ext == ".mtl")
+        {
+            return std::filesystem::path("Assets/models") / asset_filename;
+        }
+
+        return std::nullopt;
+    }
+
     std::string normalizeProjectPath(std::string path)
     {
         std::replace(path.begin(), path.end(), '\\', '/');
@@ -120,6 +170,13 @@ namespace
             const auto candidate = (root / relative_path).lexically_normal();
             if (std::filesystem::exists(candidate))
                 return candidate;
+
+            if (const auto categorized_relative = categorizedAssetRelativePath(relative_path))
+            {
+                const auto categorized_candidate = (root / *categorized_relative).lexically_normal();
+                if (std::filesystem::exists(categorized_candidate))
+                    return categorized_candidate;
+            }
 
             if (generic_relative == "Assets" || generic_relative.rfind("Assets/", 0) == 0)
             {

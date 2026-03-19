@@ -99,7 +99,7 @@ namespace nengine
       mAnimator = std::make_unique<Animator>(mAnimation.get());
 
       if (mMaterialPath.empty())
-        set_material("Assets/Anim.xml");
+        set_material("Assets/materials/Anim.xml");
       else if (mMaterial)
         mMaterial->set_textures(mModel->GetTexturesMap());
     }
