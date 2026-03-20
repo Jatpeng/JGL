@@ -12,11 +12,15 @@ namespace nshaders
 		Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
 		// Use the program
 		void use();
+		bool reload();
 
 		// Delete the program
 		void unload();
 
 		unsigned int get_program_id() { return mProgramId; }
+		const std::string& vertex_path() const { return mVertexPath; }
+		const std::string& fragment_path() const { return mFragmentPath; }
+		const std::string& geometry_path() const { return mGeometryPath; }
 
 		void set_mat4(const glm::mat4& mat4, const std::string& name);
 
@@ -31,6 +35,9 @@ namespace nshaders
 		void set_texture(int shader_param_id, int tex_type, unsigned int tex_id);
 	private:
 		unsigned int mProgramId = 0;
+		std::string mVertexPath;
+		std::string mFragmentPath;
+		std::string mGeometryPath;
 		void checkCompileErrors(GLuint shader, std::string type);
 	};
 }

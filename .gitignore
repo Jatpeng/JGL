@@ -64,3 +64,10 @@ codex_run_*.txt
 /Game/Assets/
 /Game/Shaders/
 /Scripts/
+/build_clean/
+/x64/
+/.vscode/
+__pycache__/
+*.pyc
+*.pyo
+!/Assets/models/*.obj

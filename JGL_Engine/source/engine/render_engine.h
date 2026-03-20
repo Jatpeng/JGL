@@ -94,6 +94,7 @@ namespace nengine
     void request_frame_capture();
     bool begin_frame_capture(void* native_window);
     void end_frame_capture(void* native_window);
+    bool reload_runtime_shaders();
 
     uint32_t get_output_texture();
     uint32_t get_gbuffer_position_texture() const;
@@ -103,6 +104,7 @@ namespace nengine
   private:
     void init_deferred_pipeline();
     void init_ibl_pipeline();
+    void init_shadow_pipeline();
     void create_fullscreen_quad();
     void create_fallback_textures();
 
@@ -120,7 +122,7 @@ namespace nengine
     void forward_overlay_pass();
 
     bool is_mesh_deferred_available(const MeshComponent& mesh_comp) const;
-    void render_mesh_object(Entity& entity, MeshComponent& mesh_comp, TransformComponent& transform_comp, nshaders::Shader* shader, bool update_lighting, bool allow_multipass);
+    void render_mesh_object(MeshComponent& mesh_comp, TransformComponent& transform_comp, nshaders::Shader* shader, bool update_lighting, bool allow_multipass);
     void render_scene_meshes_forward();
     void render_plane();
     void render_plane_deferred();
@@ -130,7 +132,9 @@ namespace nengine
 
     bool is_ibl_available() const;
     void apply_ibl_to_shader(nshaders::Shader* shader, int irradiance_unit, int prefilter_unit, int brdf_unit) const;
-    void upload_lights(nshaders::Shader* shader);
+    void upload_lights(nshaders::Shader* shader, int shadow_texture_unit);
+    void apply_shadow_state(nshaders::Shader* shader, int shadow_texture_unit, int shadow_light_index) const;
+    bool compute_scene_bounds(glm::vec3* out_min, glm::vec3* out_max) const;
     std::vector<std::shared_ptr<Entity>> collect_mesh_entities() const;
 
   private:
@@ -171,8 +175,13 @@ namespace nengine
 
     unsigned int mShadowMapFBO_id = 0;
     std::unique_ptr<nshaders::Shader> mDepthShader;
-    glm::mat4 mLightSpaceMatrix;
+    glm::mat4 mLightSpaceMatrix { 1.0f };
     unsigned int mShadowMapTexture = 0;
+    bool mShadowEnabled = false;
+    uint64_t mShadowCasterEntityId = 0;
+    float mShadowBiasMin = 0.0008f;
+    float mShadowBiasMax = 0.02f;
+    int mShadowFilterRadius = 1;
     const unsigned int SHADOW_WIDTH = 2048;
     const unsigned int SHADOW_HEIGHT = 2048;
 

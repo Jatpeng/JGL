@@ -1,4 +1,4 @@
-from init import create_engine, create_scene
+from init import create_engine, create_scene, jgl
 
 
 engine = create_engine()
@@ -6,8 +6,11 @@ scene = create_scene(engine, "three_cubes")
 
 light = scene.create_light("main_light")
 light.transform.position = (3.0, 4.0, 5.0)
+light.type = jgl.LightType.DIRECTIONAL
 light.color = (1.0, 1.0, 1.0)
-light.strength = 120.0
+light.strength = 3.5
+light.direction = (-0.35, -1.0, -0.25)
+light.casts_shadows = True
 
 positions = [
     (-2.5, 0.0, 0.0),

@@ -179,6 +179,18 @@ namespace nengine
     return true;
   }
 
+  bool MeshComponent::reload_shader()
+  {
+    if (!mShader)
+    {
+      if (!mShaderPath.empty())
+        return set_shader(mShaderPath);
+      return false;
+    }
+
+    return mShader->reload();
+  }
+
   void MeshComponent::tick(float delta_time)
   {
     if (mAnimator)

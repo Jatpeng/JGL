@@ -76,6 +76,15 @@ namespace nengine
       mWindow->render();
   }
 
+  bool Engine::reload_shaders()
+  {
+    if (!init())
+      return false;
+
+    auto* renderer = render_engine();
+    return renderer ? renderer->reload_runtime_shaders() : false;
+  }
+
   std::shared_ptr<Scene> Engine::create_scene(const std::string& name)
   {
     auto scene = std::make_shared<Scene>(name, mResources);
@@ -112,8 +121,11 @@ namespace nengine
 
     auto light = scene->create_light("main_light");
     light->get_component<TransformComponent>()->position = glm::vec3(1.5f, 3.5f, 3.0f);
+    light->get_component<LightComponent>()->set_type(LightComponent::LightType::Directional);
     light->get_component<LightComponent>()->set_color(glm::vec3(1.0f, 1.0f, 1.0f));
-    light->get_component<LightComponent>()->set_strength(100.0f);
+    light->get_component<LightComponent>()->set_strength(3.5f);
+    light->get_component<LightComponent>()->set_direction(glm::vec3(-0.35f, -1.0f, -0.25f));
+    light->get_component<LightComponent>()->set_casts_shadows(true);
 
     set_active_scene(scene);
   }

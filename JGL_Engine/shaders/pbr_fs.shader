@@ -15,23 +15,35 @@ uniform sampler2D aoMap;
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
 uniform sampler2D brdfLUT;
+uniform sampler2D shadowMap;
 
 uniform vec3 camPos;
 uniform float opacity = 1.0;
 uniform int iblEnabled = 0;
 uniform float prefilterMaxLod = 4.0;
+uniform int shadowEnabled = 0;
+uniform int shadowLightIndex = -1;
+uniform mat4 lightSpaceMatrix;
+uniform float shadowBiasMin = 0.0008;
+uniform float shadowBiasMax = 0.02;
+uniform int shadowFilterRadius = 1;
 
 const float PI = 3.14159265359;
 const int MAX_DEFERRED_LIGHTS = 8;
+const int LIGHT_TYPE_POINT = 0;
+const int LIGHT_TYPE_DIRECTIONAL = 1;
 
-struct PointLight
+struct SceneLight
 {
     vec3 position;
-    vec3 color;
     int enabled;
+    vec3 color;
+    int type;
+    vec3 direction;
+    float padding0;
 };
 
-uniform PointLight lights[MAX_DEFERRED_LIGHTS];
+uniform SceneLight lights[MAX_DEFERRED_LIGHTS];
 uniform int lightCount = 0;
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -101,13 +113,66 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
   return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
-vec3 accumulateLight(vec3 lightPos, vec3 lightRadiance, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
+float calculateDirectionalShadow(vec3 worldPos, vec3 normal, vec3 lightDirection)
 {
-  vec3 L = normalize(lightPos - WorldPos);
+  vec4 fragPosLightSpace = lightSpaceMatrix * vec4(worldPos, 1.0);
+  if (fragPosLightSpace.w <= 0.0)
+    return 0.0;
+
+  vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+  projCoords = projCoords * 0.5 + 0.5;
+
+  if (projCoords.z > 1.0 ||
+      projCoords.x < 0.0 || projCoords.x > 1.0 ||
+      projCoords.y < 0.0 || projCoords.y > 1.0)
+  {
+    return 0.0;
+  }
+
+  float ndotl = max(dot(normalize(normal), normalize(-lightDirection)), 0.0);
+  float bias = max(shadowBiasMax * (1.0 - ndotl), shadowBiasMin);
+  vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+  int radius = clamp(shadowFilterRadius, 0, 4);
+  float shadow = 0.0;
+  float sampleCount = 0.0;
+
+  for (int x = -4; x <= 4; ++x)
+  {
+    if (abs(x) > radius)
+      continue;
+
+    for (int y = -4; y <= 4; ++y)
+    {
+      if (abs(y) > radius)
+        continue;
+
+      float closestDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+      shadow += projCoords.z - bias > closestDepth ? 1.0 : 0.0;
+      sampleCount += 1.0;
+    }
+  }
+
+  return sampleCount > 0.0 ? shadow / sampleCount : 0.0;
+}
+
+vec3 accumulateLight(SceneLight light, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
+{
+  vec3 L = vec3(0.0, 1.0, 0.0);
+  vec3 radiance = light.color;
+
+  if (light.type == LIGHT_TYPE_DIRECTIONAL)
+  {
+    L = normalize(-light.direction);
+  }
+  else
+  {
+    vec3 lightVector = light.position - WorldPos;
+    float distance = max(length(lightVector), 0.001);
+    L = lightVector / distance;
+    radiance *= 1.0 / max(distance * distance, 0.001);
+  }
+
   vec3 H = normalize(V + L);
-  float distance = length(lightPos - WorldPos);
-  float attenuation = 1.0 / max(distance * distance, 0.001);
-  vec3 radiance = lightRadiance * attenuation;
 
   float NDF = DistributionGGX(N, H, roughness);
   float G = GeometrySmith(N, V, L, roughness);
@@ -151,7 +216,15 @@ void main()
     if (lights[i].enabled == 0)
       continue;
 
-    Lo += accumulateLight(lights[i].position, lights[i].color, N, V, albedo, metallic, roughness, F0);
+    float shadow = 0.0;
+    if (shadowEnabled != 0 &&
+        i == shadowLightIndex &&
+        lights[i].type == LIGHT_TYPE_DIRECTIONAL)
+    {
+      shadow = calculateDirectionalShadow(WorldPos, N, lights[i].direction);
+    }
+
+    Lo += (1.0 - shadow) * accumulateLight(lights[i], N, V, albedo, metallic, roughness, F0);
   }
 
   vec3 ambient = vec3(0.03) * albedo * ao;

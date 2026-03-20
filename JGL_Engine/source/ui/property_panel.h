@@ -20,5 +20,6 @@ namespace nui
     std::string mCurrentMeshFile;
     std::string mCurrentShaderFile;
     std::string mCurrentMaterialFile;
+    std::string mShaderReloadStatus;
   };
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -43,6 +44,7 @@ namespace nengine
     bool set_model(const std::string& path);
     bool set_material(const std::string& path);
     bool set_shader(const std::string& path);
+    bool reload_shader();
 
     std::shared_ptr<nelems::Model> model() const { return mModel; }
     std::shared_ptr<Material> material() const { return mMaterial; }
@@ -79,7 +81,19 @@ namespace nengine
   class LightComponent : public IComponent
   {
   public:
-    LightComponent() = default;
+    enum class LightType
+    {
+      Point = 0,
+      Directional = 1
+    };
+
+    LightComponent()
+    {
+      set_direction(glm::vec3(-0.35f, -1.0f, -0.25f));
+    }
+
+    void set_type(LightType type) { mType = type; }
+    LightType type() const { return mType; }
 
     void set_color(const glm::vec3& color) { mColor = color; }
     const glm::vec3& color() const { return mColor; }
@@ -87,15 +101,52 @@ namespace nengine
     void set_strength(float strength) { mStrength = strength; }
     float strength() const { return mStrength; }
 
+    void set_direction(const glm::vec3& direction)
+    {
+      if (glm::length(direction) <= 0.0001f)
+        return;
+      mDirection = glm::normalize(direction);
+    }
+    const glm::vec3& direction() const { return mDirection; }
+
     void set_enabled(bool enabled) { mEnabled = enabled; }
     bool enabled() const { return mEnabled; }
+
+    void set_casts_shadows(bool casts_shadows) { mCastsShadows = casts_shadows; }
+    bool casts_shadows() const { return mCastsShadows; }
+
+    void set_shadow_bias_min(float bias)
+    {
+      mShadowBiasMin = std::max(0.0f, bias);
+      if (mShadowBiasMax < mShadowBiasMin)
+        mShadowBiasMax = mShadowBiasMin;
+    }
+    float shadow_bias_min() const { return mShadowBiasMin; }
+
+    void set_shadow_bias_max(float bias)
+    {
+      mShadowBiasMax = std::max(mShadowBiasMin, bias);
+    }
+    float shadow_bias_max() const { return mShadowBiasMax; }
+
+    void set_shadow_filter_radius(int radius)
+    {
+      mShadowFilterRadius = std::clamp(radius, 0, 4);
+    }
+    int shadow_filter_radius() const { return mShadowFilterRadius; }
 
     const char* component_type() const override { return "Light"; }
 
   private:
+    LightType mType = LightType::Point;
     glm::vec3 mColor { 1.0f, 1.0f, 1.0f };
     float mStrength = 100.0f;
+    glm::vec3 mDirection { 0.0f, -1.0f, 0.0f };
     bool mEnabled = true;
+    bool mCastsShadows = false;
+    float mShadowBiasMin = 0.0008f;
+    float mShadowBiasMax = 0.02f;
+    int mShadowFilterRadius = 1;
   };
 
   /**

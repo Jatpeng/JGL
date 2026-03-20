@@ -97,6 +97,14 @@ namespace nrender
     mEffectMaterialPath.clear();
   }
 
+  bool PostProcessStack::reload_effect_shader()
+  {
+    if (!mEffectShader || mEffectShader->get_program_id() == 0)
+      return false;
+
+    return mEffectShader->reload();
+  }
+
   bool PostProcessStack::has_effect() const
   {
     return mEffectShader && mEffectShader->get_program_id() != 0 && mEffectMaterial;

@@ -45,6 +45,7 @@ namespace nengine
     bool init();
     void run();
     void tick();
+    bool reload_shaders();
 
     std::shared_ptr<Scene> create_scene(const std::string& name);
     void set_active_scene(std::shared_ptr<Scene> scene);

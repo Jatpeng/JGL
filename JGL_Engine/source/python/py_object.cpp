@@ -79,12 +79,19 @@ void bind_mesh_object(py::module_& m)
 {
   py::class_<nengine::MeshComponent>(m, "MeshComponent")
     .def("set_model", &nengine::MeshComponent::set_model)
-    .def("set_material", &nengine::MeshComponent::set_material);
+    .def("set_material", &nengine::MeshComponent::set_material)
+    .def("reload_shader", &nengine::MeshComponent::reload_shader);
 }
 
 void bind_light_object(py::module_& m)
 {
+  py::enum_<nengine::LightComponent::LightType>(m, "LightType")
+    .value("POINT", nengine::LightComponent::LightType::Point)
+    .value("DIRECTIONAL", nengine::LightComponent::LightType::Directional)
+    .export_values();
+
   py::class_<nengine::LightComponent>(m, "LightComponent")
+    .def_property("type", &nengine::LightComponent::type, &nengine::LightComponent::set_type)
     .def_property(
       "color",
       [](const nengine::LightComponent& self)
@@ -95,6 +102,23 @@ void bind_light_object(py::module_& m)
       {
         self.set_color(vec3_from_python(value));
       })
+    .def_property(
+      "direction",
+      [](const nengine::LightComponent& self)
+      {
+        return vec3_to_python(self.direction());
+      },
+      [](nengine::LightComponent& self, const py::object& value)
+      {
+        self.set_direction(vec3_from_python(value));
+      })
     .def_property("strength", &nengine::LightComponent::strength, &nengine::LightComponent::set_strength)
-    .def_property("enabled", &nengine::LightComponent::enabled, &nengine::LightComponent::set_enabled);
+    .def_property("enabled", &nengine::LightComponent::enabled, &nengine::LightComponent::set_enabled)
+    .def_property("casts_shadows", &nengine::LightComponent::casts_shadows, &nengine::LightComponent::set_casts_shadows)
+    .def_property("shadow_bias_min", &nengine::LightComponent::shadow_bias_min, &nengine::LightComponent::set_shadow_bias_min)
+    .def_property("shadow_bias_max", &nengine::LightComponent::shadow_bias_max, &nengine::LightComponent::set_shadow_bias_max)
+    .def_property(
+      "shadow_filter_radius",
+      &nengine::LightComponent::shadow_filter_radius,
+      &nengine::LightComponent::set_shadow_filter_radius);
 }

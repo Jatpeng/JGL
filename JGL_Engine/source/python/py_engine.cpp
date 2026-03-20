@@ -9,6 +9,7 @@ void bind_engine(py::module_& m)
     .def("init", &nengine::Engine::init)
     .def("run", &nengine::Engine::run)
     .def("tick", &nengine::Engine::tick)
+    .def("reload_shaders", &nengine::Engine::reload_shaders)
     .def("create_scene", &nengine::Engine::create_scene)
     .def("set_active_scene", &nengine::Engine::set_active_scene)
     .def("active_scene", &nengine::Engine::active_scene);

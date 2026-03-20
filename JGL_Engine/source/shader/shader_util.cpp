@@ -1,123 +1,182 @@
 #include "pch.h"
 #include "shader_util.h"
 
+#include <filesystem>
+
+#include "utils/filesystem.h"
+
 namespace nshaders
 {
-	Shader::Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath)
+	namespace
 	{
-		// 1. retrieve the vertex/fragment source code from filePath
-		std::string vertexCode;
-		std::string fragmentCode;
-		std::string geometryCode;
-		std::ifstream vShaderFile;
-		std::ifstream fShaderFile;
-		std::ifstream gShaderFile;
-		// ensure ifstream objects can throw exceptions:
-		vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-		fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-		gShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-		try
+		std::string resolve_shader_path(const char* path)
 		{
-			// open files
-			vShaderFile.open(vertexPath);
-			fShaderFile.open(fragmentPath);
-			std::stringstream vShaderStream, fShaderStream;
-			// read file's buffer contents into streams
-			vShaderStream << vShaderFile.rdbuf();
-			fShaderStream << fShaderFile.rdbuf();
-			// close file handlers
-			vShaderFile.close();
-			fShaderFile.close();
-			// convert stream into string
-			vertexCode = vShaderStream.str();
-			fragmentCode = fShaderStream.str();
-			// if geometry shader path is present, also load a geometry shader
-			if (geometryPath != nullptr)
+			if (path == nullptr || path[0] == '\0')
+				return {};
+
+			const std::filesystem::path shader_path(path);
+			if (shader_path.is_absolute())
+				return shader_path.lexically_normal().string();
+
+			return FileSystem::getPath(path);
+		}
+
+		bool read_shader_file(const std::string& path, std::string* out_code)
+		{
+			if (!out_code)
+				return false;
+
+			std::ifstream shader_file;
+			shader_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+			try
 			{
-				gShaderFile.open(geometryPath);
-				std::stringstream gShaderStream;
-				gShaderStream << gShaderFile.rdbuf();
-				gShaderFile.close();
-				geometryCode = gShaderStream.str();
+				shader_file.open(path);
+				std::stringstream shader_stream;
+				shader_stream << shader_file.rdbuf();
+				*out_code = shader_stream.str();
+				return true;
+			}
+			catch (const std::ifstream::failure&)
+			{
+				std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << path << std::endl;
+				return false;
 			}
 		}
-		catch (std::ifstream::failure e)
-		{
-			std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
-		}
-		const char* vShaderCode = vertexCode.c_str();
-		const char* fShaderCode = fragmentCode.c_str();
-		// 2. compile shaders
-		unsigned int vertex, fragment;
-		// vertex shader
-		vertex = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertex, 1, &vShaderCode, NULL);
-		glCompileShader(vertex);
-		checkCompileErrors(vertex, "VERTEX");
-		// fragment Shader
-		fragment = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragment, 1, &fShaderCode, NULL);
-		glCompileShader(fragment);
-		checkCompileErrors(fragment, "FRAGMENT");
-		// if geometry shader is given, compile geometry shader
-		unsigned int geometry;
-		if (geometryPath != nullptr)
-		{
-			const char* gShaderCode = geometryCode.c_str();
-			geometry = glCreateShader(GL_GEOMETRY_SHADER);
-			glShaderSource(geometry, 1, &gShaderCode, NULL);
-			glCompileShader(geometry);
-			checkCompileErrors(geometry, "GEOMETRY");
-		}
-		// shader Program
-		mProgramId = glCreateProgram();
-		glAttachShader(mProgramId, vertex);
-		glAttachShader(mProgramId, fragment);
-		if (geometryPath != nullptr)
-			glAttachShader(mProgramId, geometry);
-		glLinkProgram(mProgramId);
-		checkCompileErrors(mProgramId, "PROGRAM");
-		// delete the shaders as they're linked into our program now and no longer necessery
-		glDeleteShader(vertex);
-		glDeleteShader(fragment);
-		if (geometryPath != nullptr)
-			glDeleteShader(geometry);
 
+		GLuint compile_shader_stage(const std::string& source_code, GLenum shader_type, const char* debug_name)
+		{
+			const char* shader_code = source_code.c_str();
+			const GLuint shader = glCreateShader(shader_type);
+			glShaderSource(shader, 1, &shader_code, nullptr);
+			glCompileShader(shader);
+
+			GLint success = GL_FALSE;
+			glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+			if (success == GL_TRUE)
+				return shader;
+
+			GLchar info_log[1024] = {};
+			glGetShaderInfoLog(shader, 1024, nullptr, info_log);
+			std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << debug_name
+				<< "\n" << info_log << "\n -- --------------------------------------------------- -- " << std::endl;
+			glDeleteShader(shader);
+			return 0;
+		}
+
+		GLuint build_program_from_sources(
+			const std::string& vertex_code,
+			const std::string& fragment_code,
+			const std::string& geometry_code)
+		{
+			const GLuint vertex = compile_shader_stage(vertex_code, GL_VERTEX_SHADER, "VERTEX");
+			if (vertex == 0)
+				return 0;
+
+			const GLuint fragment = compile_shader_stage(fragment_code, GL_FRAGMENT_SHADER, "FRAGMENT");
+			if (fragment == 0)
+			{
+				glDeleteShader(vertex);
+				return 0;
+			}
+
+			GLuint geometry = 0;
+			if (!geometry_code.empty())
+			{
+				geometry = compile_shader_stage(geometry_code, GL_GEOMETRY_SHADER, "GEOMETRY");
+				if (geometry == 0)
+				{
+					glDeleteShader(vertex);
+					glDeleteShader(fragment);
+					return 0;
+				}
+			}
+
+			const GLuint program = glCreateProgram();
+			glAttachShader(program, vertex);
+			glAttachShader(program, fragment);
+			if (geometry != 0)
+				glAttachShader(program, geometry);
+			glLinkProgram(program);
+
+			GLint success = GL_FALSE;
+			glGetProgramiv(program, GL_LINK_STATUS, &success);
+			if (success != GL_TRUE)
+			{
+				GLchar info_log[1024] = {};
+				glGetProgramInfoLog(program, 1024, nullptr, info_log);
+				std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: PROGRAM"
+					<< "\n" << info_log << "\n -- --------------------------------------------------- -- " << std::endl;
+				glDeleteProgram(program);
+				glDeleteShader(vertex);
+				glDeleteShader(fragment);
+				if (geometry != 0)
+					glDeleteShader(geometry);
+				return 0;
+			}
+
+			glDeleteShader(vertex);
+			glDeleteShader(fragment);
+			if (geometry != 0)
+				glDeleteShader(geometry);
+
+			return program;
+		}
+	}
+
+	Shader::Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath)
+		: mVertexPath(resolve_shader_path(vertexPath)),
+		  mFragmentPath(resolve_shader_path(fragmentPath)),
+		  mGeometryPath(resolve_shader_path(geometryPath))
+	{
+		reload();
 	}
 
 	void Shader::checkCompileErrors(GLuint shader, std::string type)
 	{
-		GLint success;
-		GLchar infoLog[1024];
-		if (type != "PROGRAM")
-		{
-			glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-			if (!success)
-			{
-				glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-				std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-			}
-		}
-		else
-		{
-			glGetProgramiv(shader, GL_LINK_STATUS, &success);
-			if (!success)
-			{
-				glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-				std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-			}
-		}
+		(void)shader;
+		(void)type;
 	}
-
 
 	void Shader::use()
 	{
 		glUseProgram(mProgramId);
 	}
 
+	bool Shader::reload()
+	{
+		if (mVertexPath.empty() || mFragmentPath.empty())
+			return false;
+
+		std::string vertex_code;
+		std::string fragment_code;
+		std::string geometry_code;
+		if (!read_shader_file(mVertexPath, &vertex_code) ||
+			!read_shader_file(mFragmentPath, &fragment_code))
+		{
+			return false;
+		}
+
+		if (!mGeometryPath.empty() && !read_shader_file(mGeometryPath, &geometry_code))
+			return false;
+
+		const GLuint new_program = build_program_from_sources(vertex_code, fragment_code, geometry_code);
+		if (new_program == 0)
+			return false;
+
+		if (mProgramId != 0)
+			glDeleteProgram(mProgramId);
+
+		mProgramId = new_program;
+		return true;
+	}
+
 	void Shader::unload()
 	{
-		glDeleteProgram(mProgramId);
+		if (mProgramId != 0)
+		{
+			glDeleteProgram(mProgramId);
+			mProgramId = 0;
+		}
 	}
 
 	void Shader::set_mat4(const glm::mat4& mat4, const std::string& name)
@@ -168,13 +227,9 @@ namespace nshaders
 		glProgramUniform4fv(get_program_id(), myLoc, 1, glm::value_ptr(vec4));
 	}
 
-
-	void Shader::set_texture(int shader_param_id,int tex_type,unsigned int tex_id)
+	void Shader::set_texture(int shader_param_id, int tex_type, unsigned int tex_id)
 	{
 		glActiveTexture(shader_param_id);
 		glBindTexture(tex_type, tex_id);
 	}
-
-	
 }
-

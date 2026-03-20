@@ -2,6 +2,8 @@
 
 #include "engine/render_engine.h"
 
+#include <array>
+#include <limits>
 #include <sstream>
 
 #include "render/renderdoc_capture.h"
@@ -16,7 +18,16 @@ namespace nengine
     constexpr int kDeferredIBLIrradianceUnit = 3;
     constexpr int kDeferredIBLPrefilterUnit = 4;
     constexpr int kDeferredIBLBrdfUnit = 5;
+    constexpr int kForwardShadowUnit = 11;
+    constexpr int kDeferredShadowUnit = 6;
     constexpr float kPrefilterMaxLod = 4.0f;
+
+    struct Bounds3
+    {
+      glm::vec3 min { 0.0f, 0.0f, 0.0f };
+      glm::vec3 max { 0.0f, 0.0f, 0.0f };
+      bool valid = false;
+    };
 
     uint32_t create_solid_texture_rgba(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
     {
@@ -55,6 +66,37 @@ namespace nengine
         return "Unknown";
       }
     }
+
+    void expand_bounds(Bounds3* bounds, const glm::vec3& point)
+    {
+      if (!bounds)
+        return;
+
+      if (!bounds->valid)
+      {
+        bounds->min = point;
+        bounds->max = point;
+        bounds->valid = true;
+        return;
+      }
+
+      bounds->min = glm::min(bounds->min, point);
+      bounds->max = glm::max(bounds->max, point);
+    }
+
+    std::array<glm::vec3, 8> make_aabb_corners(const glm::vec3& min, const glm::vec3& max)
+    {
+      return {
+        glm::vec3(min.x, min.y, min.z),
+        glm::vec3(max.x, min.y, min.z),
+        glm::vec3(min.x, max.y, min.z),
+        glm::vec3(max.x, max.y, min.z),
+        glm::vec3(min.x, min.y, max.z),
+        glm::vec3(max.x, min.y, max.z),
+        glm::vec3(min.x, max.y, max.z),
+        glm::vec3(max.x, max.y, max.z)
+      };
+    }
   }
 
   RenderEngine::RenderEngine(const RenderEngine::CreateInfo& create_info)
@@ -88,6 +130,7 @@ namespace nengine
       load_plane();
 
     init_deferred_pipeline();
+    init_shadow_pipeline();
     mPostProcessStack = std::make_unique<nrender::PostProcessStack>();
     mPostProcessStack->init(mResources, mRenderTargetSize.x, mRenderTargetSize.y);
   }
@@ -102,6 +145,8 @@ namespace nengine
       mDeferredGeometryShader->unload();
     if (mDeferredLightingShader && mDeferredLightingShader->get_program_id() != 0)
       mDeferredLightingShader->unload();
+    if (mDepthShader && mDepthShader->get_program_id() != 0)
+      mDepthShader->unload();
     if (mQuadVBO != 0)
       glDeleteBuffers(1, &mQuadVBO);
     if (mQuadVAO != 0)
@@ -112,6 +157,10 @@ namespace nengine
       glDeleteTextures(1, &mFallbackBlackTexture);
     if (mFallbackNormalTexture != 0)
       glDeleteTextures(1, &mFallbackNormalTexture);
+    if (mShadowMapTexture != 0)
+      glDeleteTextures(1, &mShadowMapTexture);
+    if (mShadowMapFBO_id != 0)
+      glDeleteFramebuffers(1, &mShadowMapFBO_id);
   }
 
   void RenderEngine::init_deferred_pipeline()
@@ -155,6 +204,51 @@ namespace nengine
       std::cout << "[RenderEngine] Failed to build IBL textures from skybox cubemap." << std::endl;
       mIBLPipeline.reset();
     }
+  }
+
+  void RenderEngine::init_shadow_pipeline()
+  {
+    mDepthShader = mResources->load_shader_program(
+      "JGL_Engine/shaders/shadow_depth_vs.shader",
+      "JGL_Engine/shaders/shadow_depth_fs.shader");
+
+    if (!mDepthShader || mDepthShader->get_program_id() == 0)
+    {
+      std::cout << "[RenderEngine] Shadow depth shader failed." << std::endl;
+      mDepthShader.reset();
+      return;
+    }
+
+    glGenFramebuffers(1, &mShadowMapFBO_id);
+    glGenTextures(1, &mShadowMapTexture);
+    glBindTexture(GL_TEXTURE_2D, mShadowMapTexture);
+    glTexImage2D(
+      GL_TEXTURE_2D,
+      0,
+      GL_DEPTH_COMPONENT24,
+      SHADOW_WIDTH,
+      SHADOW_HEIGHT,
+      0,
+      GL_DEPTH_COMPONENT,
+      GL_FLOAT,
+      nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    const float border_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, mShadowMapFBO_id);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, mShadowMapTexture, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE)
+      std::cout << "[RenderEngine] Shadow framebuffer incomplete: 0x" << std::hex << status << std::dec << std::endl;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 
   void RenderEngine::create_fullscreen_quad()
@@ -270,6 +364,57 @@ namespace nengine
     return meshes;
   }
 
+  bool RenderEngine::compute_scene_bounds(glm::vec3* out_min, glm::vec3* out_max) const
+  {
+    if (!out_min || !out_max)
+      return false;
+
+    Bounds3 bounds;
+    const auto expand_model_bounds = [&bounds](const std::shared_ptr<nelems::Model>& model, const glm::mat4& world_matrix)
+    {
+      if (!model || !model->HasLocalBounds())
+        return;
+
+      for (const auto& corner : make_aabb_corners(model->GetLocalBoundsMin(), model->GetLocalBoundsMax()))
+      {
+        const glm::vec3 world_corner = glm::vec3(world_matrix * glm::vec4(corner, 1.0f));
+        expand_bounds(&bounds, world_corner);
+      }
+    };
+
+    for (const auto& entity : collect_mesh_entities())
+    {
+      if (!entity)
+        continue;
+
+      auto mesh_comp = entity->get_component<MeshComponent>();
+      auto transform_comp = entity->get_component<TransformComponent>();
+      if (!mesh_comp || !transform_comp)
+        continue;
+
+      if (auto model = mesh_comp->model())
+      {
+        expand_model_bounds(model, transform_comp->world_matrix());
+      }
+      else
+      {
+        const glm::vec3 half_extent = glm::max(transform_comp->scale * 0.5f, glm::vec3(0.5f));
+        expand_bounds(&bounds, transform_comp->position - half_extent);
+        expand_bounds(&bounds, transform_comp->position + half_extent);
+      }
+    }
+
+    if (mShowPlane && mPlane)
+      expand_model_bounds(mPlane, glm::mat4(1.0f));
+
+    if (!bounds.valid)
+      return false;
+
+    *out_min = bounds.min;
+    *out_max = bounds.max;
+    return true;
+  }
+
   void RenderEngine::update_frame_state()
   {
     const float current_frame = static_cast<float>(glfwGetTime());
@@ -308,8 +453,8 @@ namespace nengine
   void RenderEngine::load_plane()
   {
     mPlaneShader = mResources->load_shader_program(
-      "JGL_Engine/shaders/buit_in/base_vs.shader",
-      "JGL_Engine/shaders/buit_in/base_fs.shader");
+      "JGL_Engine/shaders/pbr_vs.shader",
+      "JGL_Engine/shaders/pbr_fs.shader");
     mPlane = mResources->load_model("Assets/built_in/plane.fbx");
     mPlaneTexture = mResources->load_texture_2d("Assets/built_in/textures/wood.png");
   }
@@ -338,9 +483,166 @@ namespace nengine
 
     mPlaneShader->use();
     mCamera->update(mPlaneShader.get());
+    mPlaneShader->set_mat4(glm::mat4(1.0f), "model");
+    mPlaneShader->set_i1(0, "useSkinning");
+    mPlaneShader->set_vec3(glm::vec3(1.0f), "color");
+    mPlaneShader->set_f1(1.0f, "opacity");
     mPlaneShader->set_i1(0, "baseMap");
+    mPlaneShader->set_i1(1, "metallicMap");
+    mPlaneShader->set_i1(2, "roughnessMap");
+    mPlaneShader->set_i1(3, "normalMap");
+    mPlaneShader->set_i1(4, "aoMap");
     mPlaneShader->set_texture(GL_TEXTURE0, GL_TEXTURE_2D, mPlaneTexture);
+    mPlaneShader->set_texture(GL_TEXTURE1, GL_TEXTURE_2D, mFallbackBlackTexture);
+    mPlaneShader->set_texture(GL_TEXTURE2, GL_TEXTURE_2D, mFallbackWhiteTexture);
+    mPlaneShader->set_texture(GL_TEXTURE3, GL_TEXTURE_2D, mFallbackNormalTexture);
+    mPlaneShader->set_texture(GL_TEXTURE4, GL_TEXTURE_2D, mFallbackWhiteTexture);
+    mPlaneShader->set_f1(static_cast<float>(glfwGetTime()), "time");
+    upload_lights(mPlaneShader.get(), kForwardShadowUnit);
+    apply_ibl_to_shader(mPlaneShader.get(), kForwardIBLIrradianceUnit, kForwardIBLPrefilterUnit, kForwardIBLBrdfUnit);
     mPlane->Draw();
+  }
+
+  void RenderEngine::shadow_pass()
+  {
+    mShadowEnabled = false;
+    mShadowCasterEntityId = 0;
+
+    if (!mScene ||
+        !mDepthShader ||
+        mDepthShader->get_program_id() == 0 ||
+        mShadowMapFBO_id == 0 ||
+        mShadowMapTexture == 0)
+    {
+      return;
+    }
+
+    std::shared_ptr<Entity> shadow_entity;
+    LightComponent* shadow_light = nullptr;
+    for (const auto& entity : mScene->entities())
+    {
+      if (!entity)
+        continue;
+
+      auto light = entity->get_component<LightComponent>();
+      if (!light ||
+          !light->enabled() ||
+          light->type() != LightComponent::LightType::Directional ||
+          !light->casts_shadows())
+      {
+        continue;
+      }
+
+      shadow_entity = entity;
+      shadow_light = light;
+      break;
+    }
+
+    if (!shadow_entity || !shadow_light)
+      return;
+
+    glm::vec3 bounds_min { -10.0f, -10.0f, -10.0f };
+    glm::vec3 bounds_max { 10.0f, 10.0f, 10.0f };
+    if (!compute_scene_bounds(&bounds_min, &bounds_max))
+    {
+      bounds_min = glm::vec3(-10.0f);
+      bounds_max = glm::vec3(10.0f);
+    }
+
+    const glm::vec3 scene_center = 0.5f * (bounds_min + bounds_max);
+    const float scene_radius = std::max(glm::length(bounds_max - bounds_min) * 0.5f, 10.0f);
+    glm::vec3 light_direction = shadow_light->direction();
+    if (glm::length(light_direction) <= 0.0001f)
+      light_direction = glm::normalize(glm::vec3(-0.35f, -1.0f, -0.25f));
+
+    const glm::vec3 light_position = scene_center - light_direction * scene_radius * 2.0f;
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    if (std::abs(glm::dot(glm::normalize(light_direction), up)) > 0.98f)
+      up = glm::vec3(0.0f, 0.0f, 1.0f);
+
+    const glm::mat4 light_view = glm::lookAt(light_position, scene_center, up);
+
+    float min_x = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float min_y = std::numeric_limits<float>::max();
+    float max_y = std::numeric_limits<float>::lowest();
+    float min_z = std::numeric_limits<float>::max();
+    float max_z = std::numeric_limits<float>::lowest();
+    for (const auto& corner : make_aabb_corners(bounds_min, bounds_max))
+    {
+      const glm::vec3 light_space = glm::vec3(light_view * glm::vec4(corner, 1.0f));
+      min_x = std::min(min_x, light_space.x);
+      max_x = std::max(max_x, light_space.x);
+      min_y = std::min(min_y, light_space.y);
+      max_y = std::max(max_y, light_space.y);
+      min_z = std::min(min_z, light_space.z);
+      max_z = std::max(max_z, light_space.z);
+    }
+
+    const float xy_padding = std::max(scene_radius * 0.1f, 2.0f);
+    const float z_padding = std::max(scene_radius * 0.5f, 10.0f);
+    min_x -= xy_padding;
+    max_x += xy_padding;
+    min_y -= xy_padding;
+    max_y += xy_padding;
+
+    const float near_plane = std::max(0.1f, -max_z - z_padding);
+    const float far_plane = std::max(near_plane + 1.0f, -min_z + z_padding);
+    const glm::mat4 light_projection = glm::ortho(min_x, max_x, min_y, max_y, near_plane, far_plane);
+
+    mLightSpaceMatrix = light_projection * light_view;
+    mShadowCasterEntityId = shadow_entity->id();
+    mShadowBiasMin = shadow_light->shadow_bias_min();
+    mShadowBiasMax = shadow_light->shadow_bias_max();
+    mShadowFilterRadius = shadow_light->shadow_filter_radius();
+    mShadowEnabled = true;
+
+    GLint viewport[4] = { 0, 0, 0, 0 };
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    const GLboolean cull_was_enabled = glIsEnabled(GL_CULL_FACE);
+    GLint previous_cull_mode = GL_BACK;
+    if (cull_was_enabled)
+      glGetIntegerv(GL_CULL_FACE_MODE, &previous_cull_mode);
+
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glBindFramebuffer(GL_FRAMEBUFFER, mShadowMapFBO_id);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    if (!cull_was_enabled)
+      glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+
+    mDepthShader->use();
+    mDepthShader->set_mat4(mLightSpaceMatrix, "lightSpaceMatrix");
+
+    for (const auto& entity : collect_mesh_entities())
+    {
+      if (!entity)
+        continue;
+
+      auto mesh_comp = entity->get_component<MeshComponent>();
+      auto transform_comp = entity->get_component<TransformComponent>();
+      if (!mesh_comp || !transform_comp || !mesh_comp->model())
+        continue;
+
+      mDepthShader->set_mat4(transform_comp->world_matrix(), "model");
+      mesh_comp->apply_skinning(mDepthShader.get());
+      mesh_comp->model()->Draw();
+    }
+
+    if (mShowPlane && mPlane)
+    {
+      mDepthShader->set_i1(0, "useSkinning");
+      mDepthShader->set_mat4(glm::mat4(1.0f), "model");
+      mPlane->Draw();
+    }
+
+    glCullFace(cull_was_enabled ? previous_cull_mode : GL_BACK);
+    if (!cull_was_enabled)
+      glDisable(GL_CULL_FACE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
   }
 
   bool RenderEngine::is_mesh_deferred_available(const MeshComponent& mesh_comp) const
@@ -359,7 +661,6 @@ namespace nengine
   }
 
   void RenderEngine::render_mesh_object(
-    Entity& entity,
     MeshComponent& mesh_comp,
     TransformComponent& transform_comp,
     nshaders::Shader* shader,
@@ -373,10 +674,10 @@ namespace nengine
 
     shader->use();
     mCamera->update(shader);
-    shader->set_mat4(transform_comp.local_matrix(), "model");
+    shader->set_mat4(transform_comp.world_matrix(), "model");
 
     if (update_lighting)
-      upload_lights(shader);
+      upload_lights(shader, kForwardShadowUnit);
 
     mesh_comp.apply_skinning(shader);
     shader->set_f1(static_cast<float>(glfwGetTime()), "time");
@@ -418,7 +719,7 @@ namespace nengine
       if (!shader || shader->get_program_id() == 0)
         continue;
 
-      render_mesh_object(*entity, *mesh_comp, *transform_comp, shader, true, true);
+      render_mesh_object(*mesh_comp, *transform_comp, shader, true, true);
     }
   }
 
@@ -458,7 +759,7 @@ namespace nengine
         if (!mesh_comp || !transform_comp || !is_mesh_deferred_available(*mesh_comp))
           continue;
 
-        render_mesh_object(*entity, *mesh_comp, *transform_comp, mDeferredGeometryShader.get(), false, false);
+        render_mesh_object(*mesh_comp, *transform_comp, mDeferredGeometryShader.get(), false, false);
       }
     }
 
@@ -490,7 +791,7 @@ namespace nengine
     mDeferredLightingShader->set_vec3(mCamera->get_position(), "camPos");
     apply_ibl_to_shader(mDeferredLightingShader.get(), kDeferredIBLIrradianceUnit, kDeferredIBLPrefilterUnit, kDeferredIBLBrdfUnit);
 
-    upload_lights(mDeferredLightingShader.get());
+    upload_lights(mDeferredLightingShader.get(), kDeferredShadowUnit);
 
     mGBuffer->bind_textures(GL_TEXTURE0);
     render_fullscreen_quad();
@@ -516,6 +817,7 @@ namespace nengine
     mDeferredGeometryShader->use();
     mCamera->update(mDeferredGeometryShader.get());
     mDeferredGeometryShader->set_i1(0, "useSkinning");
+    mDeferredGeometryShader->set_mat4(glm::mat4(1.0f), "model");
     mDeferredGeometryShader->set_vec3(glm::vec3(1.0f, 1.0f, 1.0f), "color");
     mDeferredGeometryShader->set_i1(0, "baseMap");
     mDeferredGeometryShader->set_i1(1, "metallicMap");
@@ -575,13 +877,38 @@ namespace nengine
     shader->set_texture(GL_TEXTURE0 + brdf_unit, GL_TEXTURE_2D, mIBLPipeline->get_brdf_lut());
   }
 
-  void RenderEngine::upload_lights(nshaders::Shader* shader)
+  void RenderEngine::apply_shadow_state(nshaders::Shader* shader, int shadow_texture_unit, int shadow_light_index) const
+  {
+    if (!shader || shader->get_program_id() == 0)
+      return;
+
+    const bool shadow_ready =
+      mShadowEnabled &&
+      shadow_light_index >= 0 &&
+      mShadowMapTexture != 0;
+
+    shader->set_i1(shadow_ready ? 1 : 0, "shadowEnabled");
+    shader->set_i1(shadow_light_index, "shadowLightIndex");
+    shader->set_mat4(mLightSpaceMatrix, "lightSpaceMatrix");
+    shader->set_f1(mShadowBiasMin, "shadowBiasMin");
+    shader->set_f1(mShadowBiasMax, "shadowBiasMax");
+    shader->set_i1(mShadowFilterRadius, "shadowFilterRadius");
+
+    if (!shadow_ready)
+      return;
+
+    shader->set_i1(shadow_texture_unit, "shadowMap");
+    shader->set_texture(GL_TEXTURE0 + shadow_texture_unit, GL_TEXTURE_2D, mShadowMapTexture);
+  }
+
+  void RenderEngine::upload_lights(nshaders::Shader* shader, int shadow_texture_unit)
   {
     if (!shader || shader->get_program_id() == 0)
       return;
 
     constexpr size_t kMaxDeferredLights = 8;
     size_t light_index = 0;
+    int shadow_light_index = -1;
 
     if (mScene)
     {
@@ -593,10 +920,14 @@ namespace nengine
           continue;
 
         shader->set_vec3(transform->position, "lights[" + std::to_string(light_index) + "].position");
+        shader->set_vec3(light->direction(), "lights[" + std::to_string(light_index) + "].direction");
         shader->set_vec3(
           light->color() * light->strength(),
           "lights[" + std::to_string(light_index) + "].color");
         shader->set_i1(light->enabled() ? 1 : 0, "lights[" + std::to_string(light_index) + "].enabled");
+        shader->set_i1(static_cast<int>(light->type()), "lights[" + std::to_string(light_index) + "].type");
+        if (mShadowEnabled && entity->id() == mShadowCasterEntityId)
+          shadow_light_index = static_cast<int>(light_index);
         ++light_index;
       }
     }
@@ -606,15 +937,20 @@ namespace nengine
     for (; light_index < kMaxDeferredLights; ++light_index)
     {
       shader->set_vec3(glm::vec3(0.0f), "lights[" + std::to_string(light_index) + "].position");
+      shader->set_vec3(glm::vec3(0.0f, -1.0f, 0.0f), "lights[" + std::to_string(light_index) + "].direction");
       shader->set_vec3(glm::vec3(0.0f), "lights[" + std::to_string(light_index) + "].color");
       shader->set_i1(0, "lights[" + std::to_string(light_index) + "].enabled");
+      shader->set_i1(static_cast<int>(LightComponent::LightType::Point), "lights[" + std::to_string(light_index) + "].type");
     }
+
+    apply_shadow_state(shader, shadow_texture_unit, shadow_light_index);
   }
 
   void RenderEngine::render_forward_to_framebuffer()
   {
-    mFrameBuffer->bind();
     update_frame_state();
+    shadow_pass();
+    mFrameBuffer->bind();
 
     if (!mModelTransparent)
       render_scene_meshes_forward();
@@ -637,6 +973,7 @@ namespace nengine
     }
 
     update_frame_state();
+    shadow_pass();
     geometry_pass();
     lighting_pass();
     forward_overlay_pass();
@@ -657,6 +994,65 @@ namespace nengine
         mRenderTargetSize.y,
         static_cast<float>(glfwGetTime()));
     }
+  }
+
+  bool RenderEngine::reload_runtime_shaders()
+  {
+    bool reloaded_any = false;
+    bool all_ok = true;
+
+    const auto reload_shader = [&](std::unique_ptr<nshaders::Shader>& shader)
+    {
+      if (!shader)
+        return;
+
+      reloaded_any = true;
+      if (!shader->reload())
+        all_ok = false;
+    };
+
+    reload_shader(mSkyShader);
+    reload_shader(mPlaneShader);
+    reload_shader(mDeferredGeometryShader);
+    reload_shader(mDeferredLightingShader);
+    reload_shader(mDepthShader);
+
+    if (mCubemapTexture != 0)
+    {
+      reloaded_any = true;
+      mIBLPipeline.reset();
+      init_ibl_pipeline();
+      if (!is_ibl_available())
+        all_ok = false;
+    }
+
+    if (mScene)
+    {
+      for (const auto& entity : mScene->entities())
+      {
+        if (!entity)
+          continue;
+
+        if (auto mesh = entity->get_component<MeshComponent>())
+        {
+          if (mesh->shader())
+          {
+            reloaded_any = true;
+            if (!mesh->reload_shader())
+              all_ok = false;
+          }
+        }
+      }
+    }
+
+    if (mPostProcessStack && mPostProcessStack->has_effect())
+    {
+      reloaded_any = true;
+      if (!mPostProcessStack->reload_effect_shader())
+        all_ok = false;
+    }
+
+    return reloaded_any && all_ok;
   }
 
   uint32_t RenderEngine::get_output_texture()

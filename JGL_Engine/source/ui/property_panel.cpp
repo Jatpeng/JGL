@@ -319,6 +319,7 @@ namespace nui
       {
         auto light = scene->create_light("light_" + std::to_string(scene->entities().size() + 1));
         light->get_component<nengine::TransformComponent>()->position = glm::vec3(1.5f, 3.5f, 3.0f);
+        light->get_component<nengine::LightComponent>()->set_type(nengine::LightComponent::LightType::Point);
         light->get_component<nengine::LightComponent>()->set_strength(100.0f);
         mSelectedObjectId = light->id();
       }
@@ -413,6 +414,14 @@ namespace nui
         if (file_path && selected_mesh->set_shader(*file_path))
           mCurrentShaderFile = file_label(selected_mesh->shader_path());
       }
+      ImGui::SameLine();
+      if (ImGui::Button("Reload Shader"))
+      {
+        const bool reload_ok = selected_mesh->reload_shader();
+        mShaderReloadStatus = reload_ok
+          ? "Selected mesh shader reloaded."
+          : "Selected mesh shader reload failed. See console for compile errors.";
+      }
       ImGui::SameLine(0, 5.0f);
       ImGui::TextUnformatted(mCurrentShaderFile.c_str());
 
@@ -446,13 +455,52 @@ namespace nui
       if (ImGui::Checkbox("Enabled", &enabled))
         selected_light->set_enabled(enabled);
 
+      int light_type = static_cast<int>(selected_light->type());
+      if (ImGui::Combo("Type", &light_type, "Point\0Directional\0"))
+      {
+        selected_light->set_type(static_cast<nengine::LightComponent::LightType>(light_type));
+      }
+
       glm::vec3 color = selected_light->color();
       if (ImGui::ColorEdit3("Color", (float*)&color))
         selected_light->set_color(color);
 
       float strength = selected_light->strength();
-      if (ImGui::SliderFloat("Strength", &strength, 0.0f, 200.0f))
+      const float max_strength =
+        selected_light->type() == nengine::LightComponent::LightType::Directional ? 20.0f : 200.0f;
+      if (ImGui::SliderFloat("Strength", &strength, 0.0f, max_strength))
         selected_light->set_strength(strength);
+
+      if (selected_light->type() == nengine::LightComponent::LightType::Directional)
+      {
+        glm::vec3 direction = selected_light->direction();
+        if (ImGui::SliderFloat3("Direction", (float*)&direction, -1.0f, 1.0f))
+          selected_light->set_direction(direction);
+
+        bool casts_shadows = selected_light->casts_shadows();
+        if (ImGui::Checkbox("Cast Shadows", &casts_shadows))
+          selected_light->set_casts_shadows(casts_shadows);
+
+        begin_disabled(!casts_shadows);
+        int filter_radius = selected_light->shadow_filter_radius();
+        if (ImGui::SliderInt("Shadow PCF Radius", &filter_radius, 0, 4))
+          selected_light->set_shadow_filter_radius(filter_radius);
+
+        float shadow_bias_min = selected_light->shadow_bias_min();
+        if (ImGui::SliderFloat("Shadow Bias Min", &shadow_bias_min, 0.00001f, 0.01f, "%.5f", ImGuiSliderFlags_Logarithmic))
+          selected_light->set_shadow_bias_min(shadow_bias_min);
+
+        float shadow_bias_max = selected_light->shadow_bias_max();
+        if (ImGui::SliderFloat("Shadow Bias Max", &shadow_bias_max, 0.0001f, 0.05f, "%.5f", ImGuiSliderFlags_Logarithmic))
+          selected_light->set_shadow_bias_max(shadow_bias_max);
+        end_disabled(!casts_shadows);
+
+        ImGui::TextDisabled("Directional shadows currently drive the imported Graphics2 shadow pass.");
+      }
+      else
+      {
+        ImGui::TextDisabled("Point lights use inverse-square falloff. Shadow maps are enabled for directional lights.");
+      }
     }
 
     if (ImGui::CollapsingHeader("Transparency"))
@@ -489,6 +537,17 @@ namespace nui
 
       if (deferred_requested && !deferred_available)
         ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f), "At least one mesh falls back to forward rendering.");
+
+      if (ImGui::Button("Reload All Shaders (F5)"))
+      {
+        const bool reload_ok = engine->reload_runtime_shaders();
+        mShaderReloadStatus = reload_ok
+          ? "Runtime shaders reloaded."
+          : "Shader reload failed or no shader was active. See console for details.";
+      }
+
+      if (!mShaderReloadStatus.empty())
+        ImGui::TextWrapped("%s", mShaderReloadStatus.c_str());
     }
 
     if (ImGui::CollapsingHeader("Screen Effects", ImGuiTreeNodeFlags_DefaultOpen))

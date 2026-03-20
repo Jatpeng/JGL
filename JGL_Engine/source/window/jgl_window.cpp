@@ -81,6 +81,8 @@ namespace nwindow
     {
       if (key == GLFW_KEY_F12 && mEngine)
         mEngine->request_frame_capture();
+      if (key == GLFW_KEY_F5 && mEngine)
+        mEngine->reload_runtime_shaders();
     }
   }
 

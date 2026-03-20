@@ -38,12 +38,18 @@ namespace nelems
         auto& GetBoneInfoMap() { return m_BoneInfoMap; }
         int& GetBoneCount() { return m_BoneCounter; }
         const map<string, pair<unsigned int, string>>& GetTexturesMap() { return m_Textures_map; }
+        bool HasLocalBounds() const { return mHasBounds; }
+        const glm::vec3& GetLocalBoundsMin() const { return mBoundsMin; }
+        const glm::vec3& GetLocalBoundsMax() const { return mBoundsMax; }
     private:
         string m_modelPath;
         map<string, pair<unsigned int, string>> m_Textures_map;
         map<string, BoneInfo> m_BoneInfoMap;
         int m_BoneCounter = 0;
         bool mSkinInModel = false;
+        bool mHasBounds = false;
+        glm::vec3 mBoundsMin { 0.0f, 0.0f, 0.0f };
+        glm::vec3 mBoundsMax { 0.0f, 0.0f, 0.0f };
         // loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
         void loadModel(string const& path)
         {
@@ -141,6 +147,18 @@ namespace nelems
                 SetVertexBoneDataToDefault(vertex);
                 vertex.mPos = AssimpGLMHelpers::GetGLMVec(mesh->mVertices[i]);
                 vertex.mNormal = AssimpGLMHelpers::GetGLMVec(mesh->mNormals[i]);
+
+                if (!mHasBounds)
+                {
+                    mBoundsMin = vertex.mPos;
+                    mBoundsMax = vertex.mPos;
+                    mHasBounds = true;
+                }
+                else
+                {
+                    mBoundsMin = glm::min(mBoundsMin, vertex.mPos);
+                    mBoundsMax = glm::max(mBoundsMax, vertex.mPos);
+                }
 
                 if (mesh->mTextureCoords[0])
                 {

@@ -18,6 +18,7 @@ namespace nrender
     void resize(int32_t width, int32_t height);
     bool set_effect_material(const std::string& material_path);
     void clear_effect_material();
+    bool reload_effect_shader();
     bool has_effect() const;
     std::shared_ptr<Material> get_effect_material() const;
     const std::string& get_effect_material_path() const;

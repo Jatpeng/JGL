@@ -16,8 +16,8 @@ def engine_search_dirs(root: Path):
 
     seen = set()
     preferred = [
-        engine_root / "Release",
         engine_root / "Debug",
+        engine_root / "Release",
         engine_root / "RelWithDebInfo",
         engine_root / "MinSizeRel",
         engine_root,
