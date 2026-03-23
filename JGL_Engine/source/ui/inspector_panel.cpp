@@ -296,7 +296,7 @@ namespace nui
         context.selected_mesh->material() &&
         ImGui::CollapsingHeader("Material Parameters", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      draw_material_parameter_editor(context.selected_mesh->material());
+      draw_material_parameter_editor(context.selected_mesh->material(), context.texture_presets);
     }
 
     if (context.selected_light && ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))

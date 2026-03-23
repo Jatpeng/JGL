@@ -318,6 +318,13 @@ namespace nui
       });
   }
 
+  std::vector<std::string> list_texture_presets()
+  {
+    return list_project_files(
+      { "Assets" },
+      { ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".dds", ".hdr", ".tif", ".tiff" });
+  }
+
   std::vector<std::string> list_screen_effect_materials()
   {
     return list_project_files({ "Assets/screen_effects" }, { ".xml", ".mtl" });
@@ -368,7 +375,9 @@ namespace nui
     light->set_direction(rotation_to_direction(transform->rotation));
   }
 
-  void draw_material_parameter_editor(const std::shared_ptr<Material>& material)
+  void draw_material_parameter_editor(
+    const std::shared_ptr<Material>& material,
+    const std::vector<std::string>& texture_presets)
   {
     if (!material)
       return;
@@ -419,12 +428,14 @@ namespace nui
 
     if (ImGui::TreeNodeEx("Texture Slots", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      for (const auto& it : material->getTextureMap())
+      for (auto& it : material->getTextureMap())
       {
-        const std::string resolved_name = file_label(it.second.second);
-        ImGui::BulletText("%s", it.first.c_str());
+        ImGui::PushID(it.first.c_str());
+
+        ImGui::TextDisabled("%s", it.first.c_str());
         ImGui::SameLine(140.0f);
-        ImGui::TextUnformatted(resolved_name.c_str());
+        const std::string display_path = display_project_path(it.second.second);
+        ImGui::TextUnformatted(display_path.c_str());
 
         if (ImGui::IsItemHovered())
         {
@@ -432,6 +443,28 @@ namespace nui
           ImGui::TextWrapped("%s", it.second.second.c_str());
           ImGui::EndTooltip();
         }
+
+        draw_path_combo(
+          "Preset",
+          texture_presets,
+          it.second.second,
+          "Select texture preset...",
+          [&](const std::string& path)
+          {
+            material->set_texture_param(it.first, path);
+          });
+
+        if (ImGui::Button("Load Texture..."))
+        {
+          const auto file_path = open_native_file_dialog(
+            L"Open Texture",
+            L"Texture Files (*.png;*.jpg;*.jpeg;*.tga;*.bmp;*.dds;*.hdr;*.tif;*.tiff)\0*.png;*.jpg;*.jpeg;*.tga;*.bmp;*.dds;*.hdr;*.tif;*.tiff\0All Files (*.*)\0*.*\0",
+            "Assets");
+          if (file_path)
+            material->set_texture_param(it.first, *file_path);
+        }
+
+        ImGui::PopID();
       }
       if (material->getTextureMap().empty())
         ImGui::TextDisabled("No texture slots.");
@@ -481,6 +514,7 @@ namespace nui
     context.material_presets = list_material_presets();
     context.animation_presets = list_animation_presets();
     context.shader_presets = list_mesh_shader_programs();
+    context.texture_presets = list_texture_presets();
     context.environment_maps = list_environment_maps();
     context.screen_effect_materials = list_screen_effect_materials();
 

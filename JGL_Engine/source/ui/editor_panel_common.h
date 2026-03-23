@@ -36,6 +36,7 @@ namespace nui
     std::string new_mesh_model_path = "Assets/models/cube.fbx";
     std::string new_mesh_material_path = "Assets/materials/PBR.xml";
     int new_light_type = 1;
+    bool show_ibl_previews = false;
   };
 
   struct EditorPanelContext
@@ -52,6 +53,7 @@ namespace nui
     std::vector<std::string> material_presets;
     std::vector<std::string> animation_presets;
     std::vector<std::string> shader_presets;
+    std::vector<std::string> texture_presets;
     std::vector<std::string> environment_maps;
     std::vector<std::string> screen_effect_materials;
   };
@@ -79,6 +81,7 @@ namespace nui
   std::vector<std::string> list_animation_presets();
   std::vector<std::string> list_environment_maps();
   std::vector<std::string> list_mesh_shader_programs();
+  std::vector<std::string> list_texture_presets();
   std::vector<std::string> list_screen_effect_materials();
   glm::vec3 direction_to_rotation(const glm::vec3& direction);
   glm::vec3 rotation_to_direction(const glm::vec3& rotation);
@@ -88,7 +91,9 @@ namespace nui
   void sync_directional_light_direction_from_transform(
     const nengine::TransformComponent* transform,
     nengine::LightComponent* light);
-  void draw_material_parameter_editor(const std::shared_ptr<Material>& material);
+  void draw_material_parameter_editor(
+    const std::shared_ptr<Material>& material,
+    const std::vector<std::string>& texture_presets = {});
   void begin_disabled(bool disabled);
   void end_disabled(bool disabled);
 
@@ -100,17 +105,20 @@ namespace nui
     const char* empty_label,
     Callback&& on_select)
   {
-    const std::string combo_label = current_path.empty()
-      ? std::string(empty_label)
+    const std::string current_display_path = current_path.empty()
+      ? std::string()
       : display_project_path(current_path);
+    const std::string combo_label = current_display_path.empty()
+      ? std::string(empty_label)
+      : current_display_path;
 
     if (!ImGui::BeginCombo(label, combo_label.c_str()))
       return;
 
     for (const auto& path : paths)
     {
-      const bool is_selected = path == current_path;
       const std::string path_label = display_project_path(path);
+      const bool is_selected = path_label == current_display_path;
       if (ImGui::Selectable(path_label.c_str(), is_selected))
         on_select(path);
       if (is_selected)

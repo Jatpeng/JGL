@@ -52,6 +52,12 @@ namespace nui
       else
         ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.0f), "Unavailable");
 
+      begin_disabled(!context.engine->is_ibl_available());
+      ImGui::Checkbox("Show IBL Previews in Scene", &state.show_ibl_previews);
+      end_disabled(!context.engine->is_ibl_available());
+      if (state.show_ibl_previews)
+        ImGui::TextDisabled("Scene panel shows environment / irradiance / prefilter / BRDF previews.");
+
       if (!context.environment_maps.empty())
       {
         draw_path_combo(
@@ -190,7 +196,7 @@ namespace nui
         if (effect_material &&
             ImGui::CollapsingHeader("Effect Parameters", ImGuiTreeNodeFlags_DefaultOpen))
         {
-          draw_material_parameter_editor(effect_material);
+          draw_material_parameter_editor(effect_material, context.texture_presets);
         }
       }
     }

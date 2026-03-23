@@ -14,34 +14,34 @@ Name ="tint"
 Type ="float3"
 Default ="0.75,0.82,0.90"
 />
-  <Param
+<Param
 Name ="density"
 Type ="float"
-Default ="0.85"
+Default ="0.72"
 />
-  <Param
+<Param
 Name ="speed"
 Type ="float"
-Default ="4.50"
+Default ="3.10"
 />
-  <Param
+<Param
 Name ="tilt"
 Type ="float"
-Default ="0.35"
+Default ="0.28"
 />
-  <Param
+<Param
 Name ="brightness"
 Type ="float"
-Default ="0.65"
+Default ="0.42"
 />
-  <Param
+<Param
 Name ="trailLength"
 Type ="float"
-Default ="0.82"
+Default ="0.74"
 />
-  <Param
+<Param
 Name ="distortion"
 Type ="float"
-Default ="0.65"
+Default ="0.90"
 />
 </Material>

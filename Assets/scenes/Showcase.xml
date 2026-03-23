@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Scene Name="Showcase" ShowPlane="false" SkyboxEnabled="true" EnvironmentMap="Assets/environments/newport_loft/Newport_Loft_Env.hdr">
+    <Terrain Width="18.0" Depth="18.0" ResolutionX="96" ResolutionZ="96" HeightScale="0.3" HeightOffset="-0.3" UvScale="7.0" NoiseFrequency="0.18" NoiseOctaves="5" NoisePersistence="0.52" NoiseLacunarity="2.05" Seed="42" Material="Assets/materials/PBR.xml" Shader="JGL_Engine/shaders/pbr_fs.shader" Color="0.55,0.72,0.45" Name="terrain" Position="0.0,0.0,-1.8" Rotation="0.0,0.0,0.0" Scale="1.0,1.0,1.0"/>
+    <Mesh Model="Assets/models/showcase/bunny.obj" Material="Assets/materials/PBR.xml" Shader="JGL_Engine/shaders/pbr_fs.shader" Color="0.92,0.86,0.76" Name="bunny" Position="-0.8,0.24,-1.8" Rotation="0.0,35.0,0.0" Scale="0.52,0.52,0.52"/>
+    <Light Type="Directional" Direction="-0.3958,-0.8796,-0.2639" Color="1.0,0.96,0.92" Strength="3.8" Enabled="true" CastShadows="true" ShadowBiasMin="0.0008" ShadowBiasMax="0.02" ShadowFilterRadius="2" Name="sun" Position="2.5,4.0,3.5" Rotation="0.0,0.0,0.0" Scale="1.0,1.0,1.0"/>
+    <Mesh Model="Assets/models/cube.fbx" Material="Assets/materials/PBR.xml" Shader="JGL_Engine/shaders/pbr_fs.shader" Color="1.0,1.0,1.0" Name="mesh_4" Position="0.0,0.0,0.0" Rotation="0.0,0.0,0.0" Scale="1.0,1.0,1.0"/>
+</Scene>

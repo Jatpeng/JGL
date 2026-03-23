@@ -16,6 +16,12 @@ static bool is_absolute_path(const std::string& path)
 
 unsigned int TextureSystem::getTextureId(const char* path, GLint tex_wrapping)
 {
+    if (path == nullptr || path[0] == '\0')
+    {
+        std::cout << "Texture failed to load: empty path." << std::endl;
+        return 0;
+    }
+
     stbi_set_flip_vertically_on_load(true);
 
     unsigned int textureID;
@@ -52,6 +58,8 @@ unsigned int TextureSystem::getTextureId(const char* path, GLint tex_wrapping)
     {
         std::cout << "Texture failed to load at path: " << finalPath << std::endl;
         stbi_image_free(data);
+        glDeleteTextures(1, &textureID);
+        textureID = 0;
     }
 
     return textureID;

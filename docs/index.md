@@ -17,6 +17,7 @@
 ## 引擎与渲染
 
 - [渲染管线（当前实现）](./engine/rendering_pipeline.md)
+- [渲染队列（当前实现）](./engine/render_queue.md)
 - [功能说明](./engine/feature_guide.md)
 - [架构重构总结](./engine/architecture_summary.md)
 

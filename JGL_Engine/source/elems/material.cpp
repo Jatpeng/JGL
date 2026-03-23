@@ -1,6 +1,7 @@
 #include "material.h"
 #include "tinyxml2.h"
 
+#include <filesystem>
 #include <unordered_set>
 
 namespace
@@ -15,6 +16,44 @@ namespace
 		};
 
 		return kEngineManagedParams.find(param_name) != kEngineManagedParams.end();
+	}
+
+	std::string to_material_asset_path(const std::string& path)
+	{
+		if (path.empty())
+			return path;
+
+		namespace fs = std::filesystem;
+
+		std::error_code ec;
+		fs::path candidate = fs::path(path);
+		if (!candidate.is_absolute())
+			return candidate.generic_string();
+
+		const fs::path project_root = fs::path(FileSystem::getPath("Assets")).parent_path();
+		const fs::path relative_path = fs::relative(candidate, project_root, ec);
+		if (!ec && !relative_path.empty())
+		{
+			const std::string relative = relative_path.generic_string();
+			if (relative != "." && relative.rfind("../", 0) != 0)
+				return relative;
+		}
+
+		return candidate.generic_string();
+	}
+
+	bool update_texture_default_value(std::vector<Param>& target_params, const std::string& param_name, const std::string& path)
+	{
+		for (auto& param : target_params)
+		{
+			if (param.name != param_name || param.type != "Texture")
+				continue;
+
+			param.defaultValue = path;
+			return true;
+		}
+
+		return false;
 	}
 }
 
@@ -38,18 +77,21 @@ void Material::load(const char* materialPath, const MaterialLoadContext* context
 	name = "default";
 	mMultipass = false;
 	mPassCount = 0;
+	mLoadContext = {};
+	if (context)
+		mLoadContext = *context;
 
 	auto resolve_path = [&](const std::string& path_value)
 	{
-		if (context && context->resolve_path)
-			return context->resolve_path(path_value);
+		if (mLoadContext.resolve_path)
+			return mLoadContext.resolve_path(path_value);
 		return FileSystem::getPath(path_value);
 	};
 
 	auto load_texture = [&](const std::string& path_value, GLint tex_wrapping)
 	{
-		if (context && context->load_texture_2d)
-			return context->load_texture_2d(path_value, tex_wrapping);
+		if (mLoadContext.load_texture_2d)
+			return mLoadContext.load_texture_2d(path_value, tex_wrapping);
 		return TextureSystem::getTextureId(path_value.c_str(), tex_wrapping);
 	};
 
@@ -173,6 +215,56 @@ bool Material::set_param(string param_name, string type, string value)
 	return true;
 }
 
+bool Material::set_texture_param(const std::string& param_name, const std::string& path, GLint tex_wrapping)
+{
+	if (path.empty())
+		return false;
+
+	const std::string material_path = to_material_asset_path(path);
+
+	auto update_texture_slot = [&](map<string, pair<unsigned int, string>>& texture_map) -> bool
+	{
+		auto it = texture_map.find(param_name);
+		if (it == texture_map.end())
+			return false;
+
+		auto resolve_path = [&](const std::string& path_value)
+		{
+			if (mLoadContext.resolve_path)
+				return mLoadContext.resolve_path(path_value);
+			return FileSystem::getPath(path_value);
+		};
+
+		auto load_texture = [&](const std::string& path_value, GLint wrapping)
+		{
+			if (mLoadContext.load_texture_2d)
+				return mLoadContext.load_texture_2d(path_value, wrapping);
+			return TextureSystem::getTextureId(path_value.c_str(), wrapping);
+		};
+
+		const std::string resolved_path = resolve_path(material_path);
+		if (resolved_path.empty())
+			return false;
+
+		const unsigned int texture_id = load_texture(resolved_path, tex_wrapping);
+		if (texture_id == 0)
+			return false;
+
+		it->second = std::make_pair(texture_id, resolved_path);
+		return true;
+	};
+
+	const bool updated =
+		update_texture_slot(mTexture_map) ||
+		update_texture_slot(mEngineTexture_map);
+	if (!updated)
+		return false;
+
+	update_texture_default_value(params, param_name, material_path);
+	update_texture_default_value(mEngineParams, param_name, material_path);
+	return true;
+}
+
 glm::vec2 Material::StringtoFloat2(std::string str)
 {
 	istringstream iss(str);
@@ -207,6 +299,7 @@ Material::~Material()
 	mEngineFloat_map.clear();
 	mEngineFloat2_map.clear();
 	mEngineFloat3_map.clear();
+	mLoadContext = {};
 }
 
 void Material::set_textures(const map<string, pair<unsigned int, string>>& textures)

@@ -2,6 +2,7 @@
 
 #include "engine/render_engine.h"
 
+#include <algorithm>
 #include <array>
 #include <limits>
 #include <sstream>
@@ -96,6 +97,64 @@ namespace nengine
         glm::vec3(min.x, max.y, max.z),
         glm::vec3(max.x, max.y, max.z)
       };
+    }
+
+    struct FrustumPlanes
+    {
+      std::array<glm::vec4, 6> planes {};
+      bool valid = false;
+    };
+
+    glm::vec4 normalize_plane(const glm::vec4& plane)
+    {
+      const float length = glm::length(glm::vec3(plane));
+      if (length <= 0.0001f)
+        return plane;
+      return plane / length;
+    }
+
+    FrustumPlanes extract_frustum_planes(const glm::mat4& view_projection)
+    {
+      const glm::vec4 row0(view_projection[0][0], view_projection[1][0], view_projection[2][0], view_projection[3][0]);
+      const glm::vec4 row1(view_projection[0][1], view_projection[1][1], view_projection[2][1], view_projection[3][1]);
+      const glm::vec4 row2(view_projection[0][2], view_projection[1][2], view_projection[2][2], view_projection[3][2]);
+      const glm::vec4 row3(view_projection[0][3], view_projection[1][3], view_projection[2][3], view_projection[3][3]);
+
+      FrustumPlanes frustum;
+      frustum.planes = {
+        normalize_plane(row3 + row0),
+        normalize_plane(row3 - row0),
+        normalize_plane(row3 + row1),
+        normalize_plane(row3 - row1),
+        normalize_plane(row3 + row2),
+        normalize_plane(row3 - row2)
+      };
+      frustum.valid = true;
+      return frustum;
+    }
+
+    bool intersects_frustum(const FrustumPlanes& frustum, const glm::vec3& bounds_min, const glm::vec3& bounds_max)
+    {
+      if (!frustum.valid)
+        return true;
+
+      for (const glm::vec4& plane : frustum.planes)
+      {
+        const glm::vec3 normal = glm::vec3(plane);
+        glm::vec3 positive_vertex = bounds_min;
+
+        if (normal.x >= 0.0f)
+          positive_vertex.x = bounds_max.x;
+        if (normal.y >= 0.0f)
+          positive_vertex.y = bounds_max.y;
+        if (normal.z >= 0.0f)
+          positive_vertex.z = bounds_max.z;
+
+        if (glm::dot(normal, positive_vertex) + plane.w < 0.0f)
+          return false;
+      }
+
+      return true;
     }
   }
 
@@ -364,6 +423,38 @@ namespace nengine
     return meshes;
   }
 
+  bool RenderEngine::compute_mesh_world_bounds(
+    const MeshComponent& mesh_comp,
+    const glm::mat4& world_matrix,
+    glm::vec3* out_min,
+    glm::vec3* out_max) const
+  {
+    if (!out_min || !out_max)
+      return false;
+
+    glm::vec3 local_min { -0.5f, -0.5f, -0.5f };
+    glm::vec3 local_max { 0.5f, 0.5f, 0.5f };
+    if (auto model = mesh_comp.model(); model && model->HasLocalBounds())
+    {
+      local_min = model->GetLocalBoundsMin();
+      local_max = model->GetLocalBoundsMax();
+    }
+
+    Bounds3 bounds;
+    for (const auto& corner : make_aabb_corners(local_min, local_max))
+    {
+      const glm::vec3 world_corner = glm::vec3(world_matrix * glm::vec4(corner, 1.0f));
+      expand_bounds(&bounds, world_corner);
+    }
+
+    if (!bounds.valid)
+      return false;
+
+    *out_min = bounds.min;
+    *out_max = bounds.max;
+    return true;
+  }
+
   bool RenderEngine::compute_scene_bounds(glm::vec3* out_min, glm::vec3* out_max) const
   {
     if (!out_min || !out_max)
@@ -392,15 +483,12 @@ namespace nengine
       if (!mesh_comp || !transform_comp)
         continue;
 
-      if (auto model = mesh_comp->model())
+      glm::vec3 entity_min { 0.0f, 0.0f, 0.0f };
+      glm::vec3 entity_max { 0.0f, 0.0f, 0.0f };
+      if (compute_mesh_world_bounds(*mesh_comp, transform_comp->world_matrix(), &entity_min, &entity_max))
       {
-        expand_model_bounds(model, transform_comp->world_matrix());
-      }
-      else
-      {
-        const glm::vec3 half_extent = glm::max(transform_comp->scale * 0.5f, glm::vec3(0.5f));
-        expand_bounds(&bounds, transform_comp->position - half_extent);
-        expand_bounds(&bounds, transform_comp->position + half_extent);
+        expand_bounds(&bounds, entity_min);
+        expand_bounds(&bounds, entity_max);
       }
     }
 
@@ -425,6 +513,115 @@ namespace nengine
     {
       mScene->tick(mDeltaTime);
     }
+  }
+
+  void RenderEngine::build_render_queue()
+  {
+    mRenderQueue.clear();
+    if (!mScene || !mCamera)
+      return;
+
+    const FrustumPlanes frustum = extract_frustum_planes(mCamera->get_view_projection());
+    const glm::vec3 camera_position = mCamera->get_position();
+
+    for (const auto& entity : mScene->entities())
+    {
+      if (!entity)
+        continue;
+
+      auto* mesh_comp = entity->get_component<MeshComponent>();
+      auto* transform_comp = entity->get_component<TransformComponent>();
+      auto model = mesh_comp ? mesh_comp->model() : nullptr;
+      if (!mesh_comp || !transform_comp || !model)
+        continue;
+
+      RenderItem item;
+      item.entity = entity.get();
+      item.mesh = mesh_comp;
+      item.transform = transform_comp;
+      item.material = mesh_comp->material().get();
+      item.world_matrix = transform_comp->world_matrix();
+
+      glm::vec3 bounds_min { 0.0f, 0.0f, 0.0f };
+      glm::vec3 bounds_max { 0.0f, 0.0f, 0.0f };
+      if (!compute_mesh_world_bounds(*mesh_comp, item.world_matrix, &bounds_min, &bounds_max))
+        continue;
+
+      const glm::vec3 bounds_center = 0.5f * (bounds_min + bounds_max);
+      const glm::vec3 to_camera = bounds_center - camera_position;
+      item.distance_to_camera_sq = glm::dot(to_camera, to_camera);
+
+      mRenderQueue.shadow_items.push_back(item);
+
+      if (!intersects_frustum(frustum, bounds_min, bounds_max))
+        continue;
+
+      auto* shader = mesh_comp->shader();
+      if (!shader || shader->get_program_id() == 0)
+        continue;
+
+      item.shader = shader;
+      item.shader_program_id = shader->get_program_id();
+
+      if (mModelTransparent)
+      {
+        mRenderQueue.transparent_items.push_back(item);
+        continue;
+      }
+
+      mRenderQueue.forward_opaque_items.push_back(item);
+      if (is_mesh_deferred_available(*mesh_comp))
+        mRenderQueue.deferred_opaque_items.push_back(item);
+    }
+
+    std::stable_sort(
+      mRenderQueue.shadow_items.begin(),
+      mRenderQueue.shadow_items.end(),
+      [](const RenderItem& lhs, const RenderItem& rhs)
+      {
+        return lhs.entity->id() < rhs.entity->id();
+      });
+
+    std::stable_sort(
+      mRenderQueue.forward_opaque_items.begin(),
+      mRenderQueue.forward_opaque_items.end(),
+      [](const RenderItem& lhs, const RenderItem& rhs)
+      {
+        if (lhs.shader_program_id != rhs.shader_program_id)
+          return lhs.shader_program_id < rhs.shader_program_id;
+
+        const auto lhs_material = reinterpret_cast<std::uintptr_t>(lhs.material);
+        const auto rhs_material = reinterpret_cast<std::uintptr_t>(rhs.material);
+        if (lhs_material != rhs_material)
+          return lhs_material < rhs_material;
+
+        if (lhs.distance_to_camera_sq != rhs.distance_to_camera_sq)
+          return lhs.distance_to_camera_sq < rhs.distance_to_camera_sq;
+
+        return lhs.entity->id() < rhs.entity->id();
+      });
+
+    std::stable_sort(
+      mRenderQueue.deferred_opaque_items.begin(),
+      mRenderQueue.deferred_opaque_items.end(),
+      [](const RenderItem& lhs, const RenderItem& rhs)
+      {
+        if (lhs.distance_to_camera_sq != rhs.distance_to_camera_sq)
+          return lhs.distance_to_camera_sq < rhs.distance_to_camera_sq;
+
+        return lhs.entity->id() < rhs.entity->id();
+      });
+
+    std::stable_sort(
+      mRenderQueue.transparent_items.begin(),
+      mRenderQueue.transparent_items.end(),
+      [](const RenderItem& lhs, const RenderItem& rhs)
+      {
+        if (lhs.distance_to_camera_sq != rhs.distance_to_camera_sq)
+          return lhs.distance_to_camera_sq > rhs.distance_to_camera_sq;
+
+        return lhs.entity->id() < rhs.entity->id();
+      });
   }
 
   void RenderEngine::load_skybox()
@@ -651,19 +848,17 @@ namespace nengine
     mDepthShader->use();
     mDepthShader->set_mat4(mLightSpaceMatrix, "lightSpaceMatrix");
 
-    for (const auto& entity : collect_mesh_entities())
+    for (const auto& item : mRenderQueue.shadow_items)
     {
-      if (!entity)
+      if (!item.mesh)
         continue;
 
-      auto mesh_comp = entity->get_component<MeshComponent>();
-      auto transform_comp = entity->get_component<TransformComponent>();
-      if (!mesh_comp || !transform_comp || !mesh_comp->model())
+      if (!item.mesh->model())
         continue;
 
-      mDepthShader->set_mat4(transform_comp->world_matrix(), "model");
-      mesh_comp->apply_skinning(mDepthShader.get());
-      mesh_comp->model()->Draw();
+      mDepthShader->set_mat4(item.world_matrix, "model");
+      item.mesh->apply_skinning(mDepthShader.get());
+      item.mesh->model()->Draw();
     }
 
     if (mShowPlane && mPlane)
@@ -698,7 +893,7 @@ namespace nengine
 
   void RenderEngine::render_mesh_object(
     MeshComponent& mesh_comp,
-    TransformComponent& transform_comp,
+    const glm::mat4& world_matrix,
     nshaders::Shader* shader,
     bool update_lighting,
     bool allow_multipass)
@@ -710,7 +905,7 @@ namespace nengine
 
     shader->use();
     mCamera->update(shader);
-    shader->set_mat4(transform_comp.world_matrix(), "model");
+    shader->set_mat4(world_matrix, "model");
 
     if (update_lighting)
       upload_lights(shader, kForwardShadowUnit);
@@ -738,25 +933,23 @@ namespace nengine
     model->Draw();
   }
 
+  void RenderEngine::render_forward_items(
+    const std::vector<RenderItem>& items,
+    bool update_lighting,
+    bool allow_multipass)
+  {
+    for (const auto& item : items)
+    {
+      if (!item.mesh || !item.shader || item.shader->get_program_id() == 0)
+        continue;
+
+      render_mesh_object(*item.mesh, item.world_matrix, item.shader, update_lighting, allow_multipass);
+    }
+  }
+
   void RenderEngine::render_scene_meshes_forward()
   {
-    for (const auto& entity : collect_mesh_entities())
-    {
-      if (!entity)
-        continue;
-
-      auto mesh_comp = entity->get_component<MeshComponent>();
-      auto transform_comp = entity->get_component<TransformComponent>();
-
-      if (!mesh_comp || !transform_comp)
-        continue;
-
-      auto* shader = mesh_comp->shader();
-      if (!shader || shader->get_program_id() == 0)
-        continue;
-
-      render_mesh_object(*mesh_comp, *transform_comp, shader, true, true);
-    }
+    render_forward_items(mRenderQueue.forward_opaque_items, true, true);
   }
 
   bool RenderEngine::is_deferred_available() const
@@ -784,18 +977,12 @@ namespace nengine
     mGBuffer->bind_for_geometry_pass();
     if (!mModelTransparent)
     {
-      for (const auto& entity : collect_mesh_entities())
+      for (const auto& item : mRenderQueue.deferred_opaque_items)
       {
-        if (!entity)
+        if (!item.mesh)
           continue;
 
-        auto mesh_comp = entity->get_component<MeshComponent>();
-        auto transform_comp = entity->get_component<TransformComponent>();
-
-        if (!mesh_comp || !transform_comp || !is_mesh_deferred_available(*mesh_comp))
-          continue;
-
-        render_mesh_object(*mesh_comp, *transform_comp, mDeferredGeometryShader.get(), false, false);
+        render_mesh_object(*item.mesh, item.world_matrix, mDeferredGeometryShader.get(), false, false);
       }
     }
 
@@ -879,7 +1066,7 @@ namespace nengine
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDepthMask(GL_FALSE);
 
-    render_scene_meshes_forward();
+    render_forward_items(mRenderQueue.transparent_items, true, true);
 
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
@@ -984,8 +1171,6 @@ namespace nengine
 
   void RenderEngine::render_forward_to_framebuffer()
   {
-    update_frame_state();
-    shadow_pass();
     mFrameBuffer->bind();
 
     if (!mModelTransparent)
@@ -1008,8 +1193,6 @@ namespace nengine
       return;
     }
 
-    update_frame_state();
-    shadow_pass();
     geometry_pass();
     lighting_pass();
     forward_overlay_pass();
@@ -1017,6 +1200,10 @@ namespace nengine
 
   void RenderEngine::render()
   {
+    update_frame_state();
+    build_render_queue();
+    shadow_pass();
+
     if (mRenderMode == RenderMode::Deferred)
       render_deferred_to_framebuffer();
     else
@@ -1171,5 +1358,25 @@ namespace nengine
   uint32_t RenderEngine::get_gbuffer_albedo_metallic_texture() const
   {
     return mGBuffer ? mGBuffer->get_albedo_metallic_texture() : 0;
+  }
+
+  uint32_t RenderEngine::get_ibl_environment_preview_texture() const
+  {
+    return mIBLPipeline ? mIBLPipeline->get_environment_preview_texture() : 0;
+  }
+
+  uint32_t RenderEngine::get_ibl_irradiance_preview_texture() const
+  {
+    return mIBLPipeline ? mIBLPipeline->get_irradiance_preview_texture() : 0;
+  }
+
+  uint32_t RenderEngine::get_ibl_prefilter_preview_texture() const
+  {
+    return mIBLPipeline ? mIBLPipeline->get_prefilter_preview_texture() : 0;
+  }
+
+  uint32_t RenderEngine::get_ibl_brdf_lut_preview_texture() const
+  {
+    return mIBLPipeline ? mIBLPipeline->get_brdf_lut_preview_texture() : 0;
   }
 }

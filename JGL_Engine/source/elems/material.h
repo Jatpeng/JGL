@@ -60,6 +60,7 @@ public:
 	bool update_shader_params(nshaders::Shader* shader);
 	bool update_shader_params(nshaders::Shader* shader, int texture_unit_offset);
 	bool set_param(string name,string type,string value);
+	bool set_texture_param(const std::string& name, const std::string& path, GLint tex_wrapping = GL_REPEAT);
 	glm::vec2 StringtoFloat2(std::string str);
 	glm::vec3 StringtoFloat3(std::string str);
 	string getshaderPath() { return mshader_path; }
@@ -89,6 +90,7 @@ public:
 	bool mMultipass;
 	string mshader_path;
 	int mPassCount;
+	MaterialLoadContext mLoadContext;
 };
 
 inline vector<string> split(const string& str, char delimiter) {

@@ -106,8 +106,40 @@ namespace nengine
     uint32_t get_gbuffer_position_texture() const;
     uint32_t get_gbuffer_normal_roughness_texture() const;
     uint32_t get_gbuffer_albedo_metallic_texture() const;
+    uint32_t get_ibl_environment_preview_texture() const;
+    uint32_t get_ibl_irradiance_preview_texture() const;
+    uint32_t get_ibl_prefilter_preview_texture() const;
+    uint32_t get_ibl_brdf_lut_preview_texture() const;
 
   private:
+    struct RenderItem
+    {
+      Entity* entity = nullptr;
+      MeshComponent* mesh = nullptr;
+      TransformComponent* transform = nullptr;
+      nshaders::Shader* shader = nullptr;
+      ::Material* material = nullptr;
+      glm::mat4 world_matrix { 1.0f };
+      float distance_to_camera_sq = 0.0f;
+      uint32_t shader_program_id = 0;
+    };
+
+    struct RenderQueue
+    {
+      std::vector<RenderItem> shadow_items;
+      std::vector<RenderItem> forward_opaque_items;
+      std::vector<RenderItem> deferred_opaque_items;
+      std::vector<RenderItem> transparent_items;
+
+      void clear()
+      {
+        shadow_items.clear();
+        forward_opaque_items.clear();
+        deferred_opaque_items.clear();
+        transparent_items.clear();
+      }
+    };
+
     void init_deferred_pipeline();
     void init_ibl_pipeline();
     void init_shadow_pipeline();
@@ -118,6 +150,7 @@ namespace nengine
     void load_plane();
 
     void update_frame_state();
+    void build_render_queue();
 
     void render_forward_to_framebuffer();
     void render_deferred_to_framebuffer();
@@ -128,7 +161,9 @@ namespace nengine
     void forward_overlay_pass();
 
     bool is_mesh_deferred_available(const MeshComponent& mesh_comp) const;
-    void render_mesh_object(MeshComponent& mesh_comp, TransformComponent& transform_comp, nshaders::Shader* shader, bool update_lighting, bool allow_multipass);
+    bool compute_mesh_world_bounds(const MeshComponent& mesh_comp, const glm::mat4& world_matrix, glm::vec3* out_min, glm::vec3* out_max) const;
+    void render_mesh_object(MeshComponent& mesh_comp, const glm::mat4& world_matrix, nshaders::Shader* shader, bool update_lighting, bool allow_multipass);
+    void render_forward_items(const std::vector<RenderItem>& items, bool update_lighting, bool allow_multipass);
     void render_scene_meshes_forward();
     void render_plane();
     void render_plane_deferred();
@@ -190,6 +225,7 @@ namespace nengine
     int mShadowFilterRadius = 1;
     const unsigned int SHADOW_WIDTH = 2048;
     const unsigned int SHADOW_HEIGHT = 2048;
+    RenderQueue mRenderQueue;
 
   };
 }

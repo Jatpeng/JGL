@@ -40,8 +40,6 @@ namespace nui
 
   void SceneView::render(EditorPanelState& state)
   {
-    (void)state;
-
     if (!mEngine)
       return;
 
@@ -55,6 +53,9 @@ namespace nui
       deferred_requested &&
       deferred_available &&
       mShowGBufferPreviews;
+    const bool show_ibl_thumbnails =
+      state.show_ibl_previews &&
+      mEngine->is_ibl_available();
 
     if (ImGui::Button("Reset View"))
       mEngine->reset_view();
@@ -158,12 +159,19 @@ namespace nui
       ImGui::Separator();
     }
 
-    const float thumbnails_height = show_gbuffer_thumbnails ? 152.0f : 0.0f;
-    const float spacing = show_gbuffer_thumbnails ? ImGui::GetStyle().ItemSpacing.y : 0.0f;
+    float preview_sections_height = 0.0f;
+    if (show_gbuffer_thumbnails)
+      preview_sections_height += 152.0f;
+    if (show_ibl_thumbnails)
+      preview_sections_height += 276.0f;
+
+    const float spacing = (show_gbuffer_thumbnails || show_ibl_thumbnails)
+      ? ImGui::GetStyle().ItemSpacing.y
+      : 0.0f;
 
     const ImVec2 viewport_panel_size = ImGui::GetContentRegionAvail();
-    const float main_view_height = show_gbuffer_thumbnails
-      ? (viewport_panel_size.y - thumbnails_height - spacing)
+    const float main_view_height = preview_sections_height > 0.0f
+      ? (viewport_panel_size.y - preview_sections_height - spacing)
       : viewport_panel_size.y;
     const float safe_view_width = viewport_panel_size.x > 1.0f ? viewport_panel_size.x : 1.0f;
     const float safe_view_height = main_view_height > 1.0f ? main_view_height : 1.0f;
@@ -311,6 +319,84 @@ namespace nui
         nengine::RenderEngine::DebugView::Albedo,
         "Metallic",
         nengine::RenderEngine::DebugView::Metallic);
+    }
+
+    if (show_ibl_thumbnails)
+    {
+      ImGui::Dummy(ImVec2(0.0f, 6.0f));
+      ImGui::Separator();
+      ImGui::TextUnformatted("IBL Inspect");
+      ImGui::TextDisabled("Cubemap previews use an equirectangular projection.");
+
+      const float available_width = ImGui::GetContentRegionAvail().x;
+      const float thumb_spacing = ImGui::GetStyle().ItemSpacing.x;
+      const bool stack_previews = available_width < 520.0f;
+      const float thumb_width = stack_previews
+        ? available_width
+        : (available_width - thumb_spacing) * 0.5f;
+      const ImVec2 thumb_size(thumb_width > 1.0f ? thumb_width : 1.0f, 84.0f);
+
+      auto draw_ibl_thumb = [&](const char* label,
+                                const char* channels,
+                                const char* tooltip,
+                                uint32_t texture_id)
+      {
+        ImGui::BeginGroup();
+        ImGui::TextUnformatted(label);
+        ImGui::TextDisabled("%s", channels);
+
+        if (texture_id != 0)
+          ImGui::Image((void*)(intptr_t)texture_id, thumb_size, ImVec2(0, 1), ImVec2(1, 0));
+        else
+          ImGui::Dummy(thumb_size);
+
+        if (ImGui::IsItemHovered())
+        {
+          ImGui::BeginTooltip();
+          ImGui::TextUnformatted(tooltip);
+          ImGui::EndTooltip();
+        }
+
+        const ImVec2 thumb_min = ImGui::GetItemRectMin();
+        const ImVec2 thumb_max = ImGui::GetItemRectMax();
+        ImGui::GetWindowDrawList()->AddRect(
+          thumb_min,
+          thumb_max,
+          IM_COL32(80, 80, 80, 255),
+          0.0f,
+          0,
+          1.0f);
+
+        ImGui::EndGroup();
+      };
+
+      draw_ibl_thumb(
+        "Environment",
+        "cubemap -> preview",
+        "Environment cubemap preview used for skybox and specular IBL.",
+        mEngine->get_ibl_environment_preview_texture());
+      if (!stack_previews)
+        ImGui::SameLine();
+
+      draw_ibl_thumb(
+        "Irradiance",
+        "diffuse IBL",
+        "Low-frequency irradiance cubemap used for diffuse ambient lighting.",
+        mEngine->get_ibl_irradiance_preview_texture());
+
+      draw_ibl_thumb(
+        "Prefilter",
+        "specular IBL",
+        "Prefilter cubemap preview sampled at an intermediate roughness level.",
+        mEngine->get_ibl_prefilter_preview_texture());
+      if (!stack_previews)
+        ImGui::SameLine();
+
+      draw_ibl_thumb(
+        "BRDF LUT",
+        "rg = integration",
+        "2D BRDF lookup texture used by the specular IBL term.",
+        mEngine->get_ibl_brdf_lut_preview_texture());
     }
 
     ImGui::End();

@@ -11,6 +11,8 @@ namespace nrender
     constexpr uint32_t kPrefilterSize = 128;
     constexpr uint32_t kBrdfLutSize = 512;
     constexpr uint32_t kPrefilterMipLevels = 5;
+    constexpr uint32_t kCubemapPreviewWidth = 256;
+    constexpr uint32_t kCubemapPreviewHeight = 128;
   }
 
   IBLPipeline::IBLPipeline()
@@ -27,6 +29,8 @@ namespace nrender
 
   void IBLPipeline::destroy_generated_textures()
   {
+    destroy_preview_textures();
+
     if (mOwnsEnvironmentCubemap && mEnvironmentCubemap)
       glDeleteTextures(1, &mEnvironmentCubemap);
     if (mIrradianceMap)
@@ -41,6 +45,72 @@ namespace nrender
     mPrefilterMap = 0;
     mBrdfLUTTexture = 0;
     mOwnsEnvironmentCubemap = false;
+  }
+
+  void IBLPipeline::destroy_preview_textures()
+  {
+    if (mPrefilterPreviewTexture)
+      glDeleteTextures(1, &mPrefilterPreviewTexture);
+    if (mIrradiancePreviewTexture)
+      glDeleteTextures(1, &mIrradiancePreviewTexture);
+    if (mEnvironmentPreviewTexture)
+      glDeleteTextures(1, &mEnvironmentPreviewTexture);
+
+    mEnvironmentPreviewTexture = 0;
+    mIrradiancePreviewTexture = 0;
+    mPrefilterPreviewTexture = 0;
+  }
+
+  bool IBLPipeline::create_preview_texture(uint32_t* out_texture, uint32_t width, uint32_t height)
+  {
+    if (!out_texture || width == 0 || height == 0)
+      return false;
+
+    if (*out_texture != 0)
+      glDeleteTextures(1, out_texture);
+
+    glGenTextures(1, out_texture);
+    glBindTexture(GL_TEXTURE_2D, *out_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return *out_texture != 0;
+  }
+
+  void IBLPipeline::render_cubemap_preview(
+    uint32_t cubemap_texture,
+    uint32_t target_texture,
+    uint32_t width,
+    uint32_t height,
+    float lod)
+  {
+    if (!mCubemapPreviewShader ||
+        mCubemapPreviewShader->get_program_id() == 0 ||
+        cubemap_texture == 0 ||
+        target_texture == 0 ||
+        mCaptureFBO == 0)
+    {
+      return;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFBO);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target_texture, 0);
+    glViewport(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    mCubemapPreviewShader->use();
+    mCubemapPreviewShader->set_i1(0, "cubemapTexture");
+    mCubemapPreviewShader->set_f1(lod, "lod");
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture);
+    render_quad();
   }
 
   void IBLPipeline::setup_cube()
@@ -157,6 +227,14 @@ namespace nrender
     if (!mBrdfShader)
       mBrdfShader = std::make_unique<nshaders::Shader>("JGL_Engine/shaders/post_process_vs.shader", "JGL_Engine/shaders/brdf.fs");
     if (mBrdfShader->get_program_id() == 0) return false;
+
+    if (!mCubemapPreviewShader)
+      mCubemapPreviewShader = std::make_unique<nshaders::Shader>("JGL_Engine/shaders/post_process_vs.shader", "JGL_Engine/shaders/ibl_preview.fs");
+    if (mCubemapPreviewShader && mCubemapPreviewShader->get_program_id() == 0)
+    {
+      std::cout << "[IBLPipeline] Cubemap preview shader unavailable." << std::endl;
+      mCubemapPreviewShader.reset();
+    }
 
     if (mCaptureFBO == 0)
       glGenFramebuffers(1, &mCaptureFBO);
@@ -367,9 +445,68 @@ namespace nrender
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     render_quad();
 
+    if (!generate_preview_textures())
+      std::cout << "[IBLPipeline] Failed to generate IBL preview textures." << std::endl;
+
     glBindFramebuffer(GL_FRAMEBUFFER, previous_framebuffer);
     glViewport(previous_viewport[0], previous_viewport[1], previous_viewport[2], previous_viewport[3]);
 
+    return true;
+  }
+
+  bool IBLPipeline::generate_preview_textures()
+  {
+    if (!mCubemapPreviewShader ||
+        mCubemapPreviewShader->get_program_id() == 0 ||
+        mCaptureFBO == 0 ||
+        mEnvironmentCubemap == 0 ||
+        mIrradianceMap == 0 ||
+        mPrefilterMap == 0)
+    {
+      destroy_preview_textures();
+      return false;
+    }
+
+    if (!create_preview_texture(&mEnvironmentPreviewTexture, kCubemapPreviewWidth, kCubemapPreviewHeight) ||
+        !create_preview_texture(&mIrradiancePreviewTexture, kCubemapPreviewWidth, kCubemapPreviewHeight) ||
+        !create_preview_texture(&mPrefilterPreviewTexture, kCubemapPreviewWidth, kCubemapPreviewHeight))
+    {
+      destroy_preview_textures();
+      return false;
+    }
+
+    GLint previous_framebuffer = 0;
+    GLint previous_viewport[4] = { 0, 0, 0, 0 };
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous_framebuffer);
+    glGetIntegerv(GL_VIEWPORT, previous_viewport);
+    const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
+
+    render_cubemap_preview(
+      mEnvironmentCubemap,
+      mEnvironmentPreviewTexture,
+      kCubemapPreviewWidth,
+      kCubemapPreviewHeight,
+      0.0f);
+    render_cubemap_preview(
+      mIrradianceMap,
+      mIrradiancePreviewTexture,
+      kCubemapPreviewWidth,
+      kCubemapPreviewHeight,
+      0.0f);
+    render_cubemap_preview(
+      mPrefilterMap,
+      mPrefilterPreviewTexture,
+      kCubemapPreviewWidth,
+      kCubemapPreviewHeight,
+      2.0f);
+
+    if (depth_was_enabled)
+      glEnable(GL_DEPTH_TEST);
+    else
+      glDisable(GL_DEPTH_TEST);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, previous_framebuffer);
+    glViewport(previous_viewport[0], previous_viewport[1], previous_viewport[2], previous_viewport[3]);
     return true;
   }
 }

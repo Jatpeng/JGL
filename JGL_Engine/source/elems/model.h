@@ -3,6 +3,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <filesystem>
 #include<glm/glm.hpp>
 #include <map>
 #include "animdata.h"
@@ -208,24 +209,29 @@ namespace nelems
         
         pair<unsigned int, string> loadMaterialTextures(aiMaterial* mat, aiTextureType type)
         {
-            map<string, pair<unsigned int, string>> textures_map;
             for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
             {
                 aiString str;
-                mat->GetTexture(type, i, &str);
-                //string tex_abl_path = m_modelPath+
-                string directory;
-                const size_t last_slash_idx = m_modelPath.rfind('\\');
-                if (std::string::npos != last_slash_idx)
-                {
-                    directory = m_modelPath.substr(0, last_slash_idx);
-                    directory = directory + "\\" + str.C_Str();
+                if (mat->GetTexture(type, i, &str) != AI_SUCCESS)
+                    continue;
 
-                }
+                std::filesystem::path texture_path(str.C_Str());
+                if (texture_path.empty())
+                    continue;
 
-                unsigned int tex_id = TextureSystem::getTextureId(directory.c_str());
-                return pair(tex_id, directory.c_str());
+                if (texture_path.is_relative())
+                    texture_path = std::filesystem::path(m_modelPath).parent_path() / texture_path;
+
+                texture_path = texture_path.lexically_normal();
+                const std::string texture_path_string = texture_path.string();
+                if (texture_path_string.empty())
+                    continue;
+
+                const unsigned int tex_id = TextureSystem::getTextureId(texture_path_string.c_str());
+                return { tex_id, texture_path_string };
             }
+
+            return { 0u, std::string() };
         }
 
 

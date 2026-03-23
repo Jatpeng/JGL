@@ -10,10 +10,13 @@ uniform vec4 color;
 
 out vec3 ourColor;
 out vec2 TexCoord;
+out vec3 WorldPos;
 
 void main()
 {
-	gl_Position = projection * view * model * vec4(aPosition, 1.0);
+	vec4 worldPos = model * vec4(aPosition, 1.0);
+	gl_Position = projection * view * worldPos;
 	ourColor = aColor;
 	TexCoord = vec2(aTexCoords.x, aTexCoords.y);
+	WorldPos = worldPos.xyz;
 }
