@@ -2,7 +2,7 @@
 setlocal
 
 set "WORKSPACE_DIR=%~dp0"
-set "DEFAULT_SCRIPT=%WORKSPACE_DIR%script\three_cubes.py"
+set "DEFAULT_SCRIPT=%WORKSPACE_DIR%script\showcase_scene.py"
 set "TARGET_SCRIPT=%DEFAULT_SCRIPT%"
 
 if not "%~1"=="" (
@@ -20,8 +20,9 @@ if not "%~1"=="" (
                 echo.
                 echo Usage:
                 echo   run_script.bat
+                echo   run_script.bat showcase_scene.py
                 echo   run_script.bat three_cubes.py
-                echo   run_script.bat script\three_cubes.py
+                echo   run_script.bat script\showcase_scene.py
                 echo   run_script.bat D:\path\to\your_script.py
                 pause
                 exit /b 1

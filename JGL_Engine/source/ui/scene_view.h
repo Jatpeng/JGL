@@ -2,6 +2,7 @@
 
 #include "engine/render_engine.h"
 #include "engine/scene.h"
+#include "ui/editor_panel_common.h"
 
 namespace nui
 {
@@ -12,7 +13,7 @@ namespace nui
     explicit SceneView(std::shared_ptr<nengine::RenderEngine> engine);
     explicit SceneView(nengine::RenderEngine* engine);
 
-    void render();
+    void render(EditorPanelState& state);
     void set_engine(std::shared_ptr<nengine::RenderEngine> engine);
     void set_engine(nengine::RenderEngine* engine);
     void set_scene(std::shared_ptr<nengine::Scene> scene);

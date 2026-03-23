@@ -7,27 +7,6 @@
 
 namespace nui
 {
-  namespace
-  {
-    void begin_disabled(bool disabled)
-    {
-      if (!disabled)
-        return;
-
-      ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
-      ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-    }
-
-    void end_disabled(bool disabled)
-    {
-      if (!disabled)
-        return;
-
-      ImGui::PopStyleVar();
-      ImGui::PopItemFlag();
-    }
-  }
-
   SceneView::SceneView(std::shared_ptr<nengine::RenderEngine> engine)
     : mEngine(engine.get())
   {
@@ -59,8 +38,10 @@ namespace nui
     return mEngine ? mEngine->get_scene() : nullptr;
   }
 
-  void SceneView::render()
+  void SceneView::render(EditorPanelState& state)
   {
+    (void)state;
+
     if (!mEngine)
       return;
 
@@ -84,6 +65,10 @@ namespace nui
     if (ImGui::Button("Capture Frame"))
       mEngine->request_frame_capture();
     end_disabled(!capture_available);
+
+    ImGui::SameLine();
+    if (ImGui::Button("Reload Shaders"))
+      mEngine->reload_runtime_shaders();
 
     ImGui::SameLine();
     bool show_plane = mEngine->is_plane_show();
@@ -141,6 +126,8 @@ namespace nui
     const glm::ivec2 target_size = mEngine->get_render_target_size();
     const char* active_mode = deferred_requested && deferred_available ? "Deferred" : "Forward";
     ImGui::TextDisabled("Target %d x %d | Active %s", target_size.x, target_size.y, active_mode);
+    ImGui::SameLine();
+    ImGui::TextDisabled("| IBL %s", mEngine->is_ibl_available() ? "Ready" : "Off");
 
     if (deferred_requested && !deferred_available)
     {
@@ -184,16 +171,17 @@ namespace nui
     const int target_width = static_cast<int>(safe_view_width);
     const int target_height = static_cast<int>(safe_view_height);
     const glm::ivec2 current_size = mEngine->get_render_target_size();
-    // Keep the off-screen render targets in lock-step with the ImGui viewport.
     if (target_width != current_size.x || target_height != current_size.y)
       mEngine->resize(target_width, target_height);
 
     mEngine->render();
 
-    ImVec2 display_size(safe_view_width, safe_view_height);
+    const glm::ivec2 viewport_size = mEngine->get_render_target_size();
+    ImVec2 display_size(
+      static_cast<float>(std::max(viewport_size.x, 1)),
+      static_cast<float>(std::max(viewport_size.y, 1)));
     ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImVec2 p1(p0.x + display_size.x, p0.y + display_size.y);
-    // Use a neutral backdrop so alpha in the viewport texture does not tint the scene.
     ImGui::GetWindowDrawList()->AddRectFilled(p0, p1, IM_COL32(24, 24, 24, 255));
 
     const uint32_t tex_id = mEngine->get_output_texture();

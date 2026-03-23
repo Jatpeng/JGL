@@ -57,6 +57,7 @@ JGL_Engine 是一个基于 OpenGL 的实时渲染引擎原型。
 文档已统一收拢到 `docs/`（包含原 `sections/` 与 `JGL_Engine/docs/` 的内容）：
 
 - [文档索引](docs/index.md)
+- [JGL Wiki](docs/wiki/index.md)
 - 引擎实现对齐：
   - [架构重构总结](docs/engine/architecture_summary.md)
   - [渲染管线：IBL 与后处理栈](docs/engine/rendering_pipeline.md)

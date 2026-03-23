@@ -67,6 +67,13 @@ void bind_scene_object(py::module_& m)
       },
       py::return_value_policy::reference_internal)
     .def_property_readonly(
+      "terrain",
+      [](nengine::Entity& self) -> nengine::TerrainComponent*
+      {
+        return self.get_component<nengine::TerrainComponent>();
+      },
+      py::return_value_policy::reference_internal)
+    .def_property_readonly(
       "light",
       [](nengine::Entity& self) -> nengine::LightComponent*
       {
@@ -79,7 +86,14 @@ void bind_mesh_object(py::module_& m)
 {
   py::class_<nengine::MeshComponent>(m, "MeshComponent")
     .def("set_model", &nengine::MeshComponent::set_model)
+    .def("set_animation", &nengine::MeshComponent::set_animation, py::arg("path"), py::arg("clip_name") = "")
+    .def("set_animation_asset", &nengine::MeshComponent::set_animation_asset)
+    .def("clear_animation", &nengine::MeshComponent::clear_animation)
+    .def("stop_animation", &nengine::MeshComponent::stop_animation)
     .def("set_material", &nengine::MeshComponent::set_material)
+    .def("set_animation_playing", &nengine::MeshComponent::set_animation_playing)
+    .def("set_animation_looping", &nengine::MeshComponent::set_animation_looping)
+    .def("set_animation_speed", &nengine::MeshComponent::set_animation_speed)
     .def("reload_shader", &nengine::MeshComponent::reload_shader);
 }
 
@@ -121,4 +135,23 @@ void bind_light_object(py::module_& m)
       "shadow_filter_radius",
       &nengine::LightComponent::shadow_filter_radius,
       &nengine::LightComponent::set_shadow_filter_radius);
+}
+
+void bind_terrain_object(py::module_& m)
+{
+  py::class_<nengine::TerrainComponent>(m, "TerrainComponent")
+    .def("rebuild", &nengine::TerrainComponent::rebuild)
+    .def("sample_height", &nengine::TerrainComponent::sample_height)
+    .def_property("width", &nengine::TerrainComponent::width, &nengine::TerrainComponent::set_width)
+    .def_property("depth", &nengine::TerrainComponent::depth, &nengine::TerrainComponent::set_depth)
+    .def_property("resolution_x", &nengine::TerrainComponent::resolution_x, &nengine::TerrainComponent::set_resolution_x)
+    .def_property("resolution_z", &nengine::TerrainComponent::resolution_z, &nengine::TerrainComponent::set_resolution_z)
+    .def_property("height_scale", &nengine::TerrainComponent::height_scale, &nengine::TerrainComponent::set_height_scale)
+    .def_property("height_offset", &nengine::TerrainComponent::height_offset, &nengine::TerrainComponent::set_height_offset)
+    .def_property("uv_scale", &nengine::TerrainComponent::uv_scale, &nengine::TerrainComponent::set_uv_scale)
+    .def_property("noise_frequency", &nengine::TerrainComponent::noise_frequency, &nengine::TerrainComponent::set_noise_frequency)
+    .def_property("noise_octaves", &nengine::TerrainComponent::noise_octaves, &nengine::TerrainComponent::set_noise_octaves)
+    .def_property("noise_persistence", &nengine::TerrainComponent::noise_persistence, &nengine::TerrainComponent::set_noise_persistence)
+    .def_property("noise_lacunarity", &nengine::TerrainComponent::noise_lacunarity, &nengine::TerrainComponent::set_noise_lacunarity)
+    .def_property("seed", &nengine::TerrainComponent::seed, &nengine::TerrainComponent::set_seed);
 }

@@ -28,6 +28,7 @@ inline py::tuple vec3_to_python(const glm::vec3& value)
 void bind_transform(py::module_& m);
 void bind_scene_object(py::module_& m);
 void bind_mesh_object(py::module_& m);
+void bind_terrain_object(py::module_& m);
 void bind_light_object(py::module_& m);
 void bind_scene(py::module_& m);
 void bind_engine(py::module_& m);

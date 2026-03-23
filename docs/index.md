@@ -1,31 +1,48 @@
 # JGL 文档索引
 
-本文档目录用于集中存放 **JGL_Engine 的设计文档 / 功能说明 / API 文档**，并尽量与当前代码实现保持一致。
+本文档目录用于集中存放当前仓库的功能说明、设计说明和 API 文档，并尽量与 `source/` 中的实际实现保持一致。
 
-## 引擎架构与渲染管线（实现对齐）
+## 推荐先读
 
-这些文档来自原 `JGL_Engine/docs/`，并会持续根据实现演进更新：
-
-- [架构重构总结：迈向商业级 ECS 框架](./engine/architecture_summary.md)
+- [JGL Wiki](./wiki/index.md)
 - [渲染管线（当前实现）](./engine/rendering_pipeline.md)
+- [功能说明](./engine/feature_guide.md)
+- [编辑器面板与工作流](./sections/JGLEditor.md)
 
-## 功能专题（原 sections，已收拢）
+## Wiki
 
-这些文档来自原 `sections/`，用于记录特性设计与使用方式：
+- [JGL Wiki 首页](./wiki/index.md)
+- [Wiki 使用与维护](./wiki/contributing.md)
 
-- [编辑器架构](./sections/JGLEditor.md)
-- [延迟渲染管线设计与集成方案](./sections/延迟渲染管线设计.md)
+## 引擎与渲染
+
+- [渲染管线（当前实现）](./engine/rendering_pipeline.md)
+- [功能说明](./engine/feature_guide.md)
+- [架构重构总结](./engine/architecture_summary.md)
+
+## 编辑器与功能专题
+
+- [编辑器面板与工作流](./sections/JGLEditor.md)
+- [延迟渲染管线设计](./sections/延迟渲染管线设计.md)
 - [Python 接口设计](./sections/Python接口设计.md)
 - [骨骼动画加载](./sections/骨骼动画加载.md)
 - [PBR 材质](./sections/PBR材质.md)
 - [Bloom](./sections/bloom.md)
-- [毛发材质](./sections/Fur.md)
-- [星空材质](./sections/SkyNight.md)
-- [天气效果](./sections/Weather.md)
+- [Fur](./sections/Fur.md)
+- [SkyNight](./sections/SkyNight.md)
+- [Weather](./sections/Weather.md)
 
 ## API 文档
 
 - [API Docs 说明](./README.md)
-- [C++ Runtime API（生成）](./api/cpp_runtime_api.md)
-- [Python API（生成）](./api/python_api.md)
+- [C++ Runtime API](./api/cpp_runtime_api.md)
+- [Python API](./api/python_api.md)
 
+## 默认展示资源
+
+当前仓库默认会加载一套资源化展示场景，相关入口如下：
+
+- 场景资源：`Assets/scenes/default_scene.xml`
+- 展示模型：`Assets/models/showcase/bunny.obj`、`Assets/models/showcase/teapot.obj`
+- 环境贴图：`Assets/environments/newport_loft/Newport_Loft_Env.hdr`
+- 脚本入口：`Game/script/showcase_scene.py`

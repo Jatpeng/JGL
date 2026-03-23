@@ -2,6 +2,8 @@
 
 This folder is the standalone runtime workspace for Python-driven JGL scenes.
 
+The default startup script loads the resource-driven showcase scene from `Assets/scenes/default_scene.xml`.
+
 Layout:
 
 - `script/`: Python scripts and bootstrap helpers.
@@ -31,14 +33,18 @@ Launch:
 Windows:
 
 ```powershell
+.\Game\run_showcase.bat
 .\Game\run_three_cubes.bat
+.\Game\run_script.bat
 .\Game\run_script.bat three_cubes.py
 ```
 
 macOS:
 
 ```bash
+bash ./Game/run_showcase.sh
 bash ./Game/run_three_cubes.sh
+bash ./Game/run_script.sh
 bash ./Game/run_script.sh three_cubes.py
 ```
 

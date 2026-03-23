@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Scene
+  Name="Showcase"
+  ShowPlane="false"
+  SkyboxEnabled="true"
+  EnvironmentMap="Assets/environments/newport_loft/Newport_Loft_Env.hdr">
+  <Terrain
+    Name="terrain"
+    Material="Assets/materials/PBR.xml"
+    Position="0.0,0.0,-1.8"
+    Width="18.0"
+    Depth="18.0"
+    ResolutionX="96"
+    ResolutionZ="96"
+    HeightScale="0.30"
+    HeightOffset="-0.30"
+    UvScale="7.0"
+    NoiseFrequency="0.18"
+    NoiseOctaves="5"
+    NoisePersistence="0.52"
+    NoiseLacunarity="2.05"
+    Seed="42"
+    Color="0.55,0.72,0.45" />
+  <Mesh
+    Name="bunny"
+    Model="Assets/models/showcase/bunny.obj"
+    Material="Assets/materials/PBR.xml"
+    Position="-0.80,0.24,-1.80"
+    Rotation="0.0,35.0,0.0"
+    Scale="0.52,0.52,0.52"
+    Color="0.92,0.86,0.76" />
+  <Mesh
+    Name="teapot"
+    Model="Assets/models/showcase/teapot.obj"
+    Material="Assets/materials/PBR.xml"
+    Position="1.05,0.56,-3.10"
+    Rotation="0.0,-25.0,0.0"
+    Scale="0.012,0.012,0.012"
+    Color="0.80,0.86,0.95" />
+  <Mesh
+    Name="vampire"
+    Model="Assets/vampire/dancing_vampire.dae"
+    Animation="Assets/animations/vampire_dance.janim"
+    Position="0.10,0.05,-2.35"
+    Rotation="0.0,180.0,0.0"
+    Scale="1.0,1.0,1.0" />
+  <Light
+    Name="sun"
+    Type="Directional"
+    Position="2.50,4.00,3.50"
+    Direction="-0.45,-1.00,-0.30"
+    Color="1.00,0.96,0.92"
+    Strength="3.80"
+    CastShadows="true"
+    ShadowBiasMin="0.0008"
+    ShadowBiasMax="0.02"
+    ShadowFilterRadius="2" />
+</Scene>

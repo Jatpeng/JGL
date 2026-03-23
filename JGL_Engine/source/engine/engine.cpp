@@ -4,6 +4,7 @@
 
 #include "engine/render_engine.h"
 #include "engine/resource_manager.h"
+#include "engine/scene_loader.h"
 #include "window/jgl_window.h"
 #include "window/window_overlay.h"
 
@@ -113,6 +114,27 @@ namespace nengine
 
   void Engine::create_default_scene_if_needed()
   {
+    SceneResourceDefinition scene_definition;
+    std::string scene_error;
+    if (load_scene_resource("Assets/scenes/default_scene.xml", mResources, &scene_definition, &scene_error) &&
+        scene_definition.scene)
+    {
+      mScenes.push_back(scene_definition.scene);
+
+      if (auto* renderer = render_engine())
+      {
+        renderer->set_plane_show(scene_definition.show_plane);
+        if (!scene_definition.environment_map_path.empty())
+          renderer->load_environment_map(scene_definition.environment_map_path);
+      }
+
+      set_active_scene(scene_definition.scene);
+      return;
+    }
+
+    if (!scene_error.empty())
+      std::cout << "[Engine] Failed to load default scene resource: " << scene_error << std::endl;
+
     auto scene = create_scene("default");
 
     auto mesh = scene->create_mesh("cube");
@@ -126,6 +148,9 @@ namespace nengine
     light->get_component<LightComponent>()->set_strength(3.5f);
     light->get_component<LightComponent>()->set_direction(glm::vec3(-0.35f, -1.0f, -0.25f));
     light->get_component<LightComponent>()->set_casts_shadows(true);
+
+    if (auto* renderer = render_engine())
+      renderer->set_plane_show(true);
 
     set_active_scene(scene);
   }

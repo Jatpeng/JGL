@@ -7,6 +7,7 @@ PYBIND11_MODULE(pyjgl, m)
   bind_transform(m);
   bind_scene_object(m);
   bind_mesh_object(m);
+  bind_terrain_object(m);
   bind_light_object(m);
   bind_scene(m);
   bind_engine(m);

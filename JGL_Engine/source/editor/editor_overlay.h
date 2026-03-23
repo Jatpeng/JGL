@@ -3,7 +3,10 @@
 #include <memory>
 
 #include "render/ui_context.h"
-#include "ui/property_panel.h"
+#include "ui/editor_panel_common.h"
+#include "ui/inspector_panel.h"
+#include "ui/render_settings_panel.h"
+#include "ui/scene_hierarchy_panel.h"
 #include "ui/scene_view.h"
 #include "window/window_overlay.h"
 
@@ -23,7 +26,10 @@ namespace neditor
 
   private:
     std::unique_ptr<nrender::UIContext> mUiContext;
-    nui::Property_Panel mPropertyPanel;
+    nui::EditorPanelState mPanelState;
+    nui::SceneHierarchyPanel mSceneHierarchyPanel;
+    nui::InspectorPanel mInspectorPanel;
+    nui::RenderSettingsPanel mRenderSettingsPanel;
     nui::SceneView mSceneView;
     bool mLayoutInitialized = false;
   };

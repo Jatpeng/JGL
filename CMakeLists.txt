@@ -317,3 +317,13 @@ add_custom_target(api_docs
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating JGL_Engine API markdown docs"
 )
+
+add_custom_target(wiki_docs
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_wiki_docs.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Generating JGL wiki markdown docs"
+)
+
+add_custom_target(docs_all
+    DEPENDS api_docs wiki_docs
+)

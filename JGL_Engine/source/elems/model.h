@@ -21,6 +21,13 @@ namespace nelems
        // string directory;
         //bool gammaCorrection;
         Model() {};
+        Model(vector<nelems::Mesh> runtime_meshes, const glm::vec3& bounds_min, const glm::vec3& bounds_max)
+          : meshes(std::move(runtime_meshes)),
+            mHasBounds(true),
+            mBoundsMin(bounds_min),
+            mBoundsMax(bounds_max)
+        {
+        }
         Model(string const& path,bool gamma = false)// : gammaCorrection(gamma)
         {
             m_modelPath = path;

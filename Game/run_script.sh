@@ -2,7 +2,7 @@
 set -u
 
 workspace_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-default_script="$workspace_dir/script/three_cubes.py"
+default_script="$workspace_dir/script/showcase_scene.py"
 target_script="$default_script"
 
 if [[ $# -gt 0 ]]; then
@@ -18,8 +18,9 @@ if [[ $# -gt 0 ]]; then
         echo >&2
         echo "Usage:" >&2
         echo "  bash Game/run_script.sh" >&2
+        echo "  bash Game/run_script.sh showcase_scene.py" >&2
         echo "  bash Game/run_script.sh three_cubes.py" >&2
-        echo "  bash Game/run_script.sh script/three_cubes.py" >&2
+        echo "  bash Game/run_script.sh script/showcase_scene.py" >&2
         echo "  bash Game/run_script.sh /path/to/your_script.py" >&2
         exit 1
     fi

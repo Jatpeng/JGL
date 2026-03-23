@@ -44,8 +44,14 @@ namespace neditor
 
     mSceneView.set_engine(&engine);
     render_dockspace();
-    mSceneView.render();
-    mPropertyPanel.render(&engine);
+    mSceneView.render(mPanelState);
+
+    auto context = nui::build_editor_panel_context(&engine, &mPanelState);
+    mSceneHierarchyPanel.render(context, mPanelState);
+
+    context = nui::build_editor_panel_context(&engine, &mPanelState);
+    mInspectorPanel.render(context, mPanelState);
+    mRenderSettingsPanel.render(context, mPanelState);
   }
 
   void EditorOverlay::end_frame()
@@ -88,10 +94,20 @@ namespace neditor
       ImGui::DockBuilderSetNodeSize(main_id, viewport->Size);
 
       ImGuiID left_id = 0;
+      ImGuiID center_id = main_id;
+      ImGui::DockBuilderSplitNode(center_id, ImGuiDir_Left, 0.22f, &left_id, &center_id);
+
       ImGuiID right_id = 0;
-      ImGui::DockBuilderSplitNode(main_id, ImGuiDir_Left, 0.22f, &left_id, &right_id);
-      ImGui::DockBuilderDockWindow("Properties", left_id);
-      ImGui::DockBuilderDockWindow("Scene", right_id);
+      ImGui::DockBuilderSplitNode(center_id, ImGuiDir_Right, 0.28f, &right_id, &center_id);
+
+      ImGuiID inspector_id = right_id;
+      ImGuiID render_settings_id = 0;
+      ImGui::DockBuilderSplitNode(inspector_id, ImGuiDir_Down, 0.38f, &render_settings_id, &inspector_id);
+
+      ImGui::DockBuilderDockWindow("Scene Hierarchy", left_id);
+      ImGui::DockBuilderDockWindow("Inspector", inspector_id);
+      ImGui::DockBuilderDockWindow("Render Settings", render_settings_id);
+      ImGui::DockBuilderDockWindow("Scene", center_id);
       ImGui::DockBuilderFinish(dock_space_id);
     }
 

@@ -1,66 +1,129 @@
-# 渲染管线（以当前实现为准）
+# 渲染管线（当前实现）
 
-> 本文档以当前代码实现为唯一准绳；设计里写了但未接入/未实现的部分会删除或明确标注为“未接入”。
+本文档以当前仓库代码为准，描述 `nengine::RenderEngine` 中已经接入运行时的渲染流程。
 
-当前渲染链路由 `nengine::RenderEngine` 驱动，包含：
+## 总览
 
-- **Forward / Deferred 两条渲染路径**：输出到引擎的离屏 `OpenGL_FrameBuffer`
-- **可选 Screen Effect（后处理）**：通过 `nrender::PostProcessStack` 对离屏颜色纹理做一次全屏 Pass
+当前渲染器包含这些核心链路：
 
-## 主离屏帧缓冲（当前为 LDR）
+- Forward / Deferred 双路径
+- Directional Light Shadow Pass
+- PBR 光照与 IBL
+- Screen Effect 后处理
+- G-Buffer 调试视图
 
-`nrender::OpenGL_FrameBuffer` 当前创建的颜色附件为 **`GL_RGBA` + `GL_UNSIGNED_BYTE`**（LDR 8-bit），深度为 **`GL_DEPTH24_STENCIL8`**。
+默认启动时，编辑器会加载 `Assets/scenes/default_scene.xml`，该场景会同时启用方向光阴影、HDR 环境图和地面平面，用来直接验证这套链路。
 
-这意味着：
+## 每帧流程
 
-- 当前管线**不以 HDR 工作流为基础**（没有 `GL_RGBA16F` 主颜色缓冲）。
-- Screen Effect 的输入 uniform 名仍叫 `hdrBuffer`，但它实际拿到的是 **LDR 颜色纹理**（命名不等于 HDR）。
+### Forward
 
-## RenderEngine 渲染流程（简化版）
+1. 更新场景与相机状态
+2. 执行方向光阴影 pass
+3. 渲染不透明 mesh
+4. 可选渲染地面
+5. 可选渲染 skybox
+6. 叠加透明物体
+7. 如配置了 screen effect，再执行一次全屏后处理
 
-- **Forward 模式**：
-  - 渲染场景 mesh（不透明）
-  -（可选）渲染地面
-  -（可选）渲染天空盒
-  -（可选）透明 mesh overlay（alpha blend）
-- **Deferred 模式**：
-  - Geometry Pass：写入 `DeferredGBuffer`
-  - Lighting Pass：全屏合成到 `OpenGL_FrameBuffer`
-  - Forward overlay：天空盒、透明 mesh overlay
-  - Debug View：在 `deferred_lighting_fs.shader` 里通过 `debugView` 切换输出（Final / Position / Normal / Albedo / Roughness / Metallic）
-- **Screen Effect（可选）**：
-  - 若 `PostProcessStack` 配置了 effect material，则对 `OpenGL_FrameBuffer` 的颜色纹理做一次全屏 Pass，输出到 `PostProcessStack` 的内部 `OpenGL_FrameBuffer`
-  - 若未配置 effect material，则最终输出仍为 `OpenGL_FrameBuffer` 的颜色纹理
+### Deferred
 
-## Screen Effect（PostProcessStack）机制
+1. 更新场景与相机状态
+2. 执行方向光阴影 pass
+3. Geometry Pass 写入 `DeferredGBuffer`
+4. Lighting Pass 合成到主离屏 framebuffer
+5. Forward Overlay 叠加 skybox 和透明物体
+6. 如配置了 screen effect，再执行一次全屏后处理
 
-### 资源组成
+## 阴影映射
 
-- 全屏 VS：`JGL_Engine/shaders/post_process_vs.shader`
-- effect FS：由 effect material 的 `shader` 字段指定（例如雨雪）
-- effect material：XML / MTL（通常放在 `Assets/screen_effects/`）
+当前阴影系统已经接入主渲染流程。
 
-### 固定输入 uniform（由引擎设置）
+- 仅使用第一个满足条件的 Directional Light 作为阴影光源
+- 该光源必须 `enabled == true`
+- 该光源必须 `type == Directional`
+- 该光源必须 `casts_shadows == true`
 
-`PostProcessStack::render()` 每帧固定设置：
+阴影 pass 的实现特点：
 
-- `hdrBuffer`（`sampler2D`）：绑定到 `GL_TEXTURE0`
-- `time`（`float`）：秒
-- `screenResolution`（`vec2`）：(width, height)
+- 根据场景包围盒动态计算 light-space 矩阵
+- 使用独立的深度 framebuffer 和深度纹理
+- Forward 和 Deferred 光照阶段都会采样同一张 shadow map
+- 支持 PCF 过滤半径
+- 支持最小 / 最大 bias 调节
 
-### material 参数下发与纹理槽约定
+当前限制：
 
-在绑定 `hdrBuffer`（texture unit 0）后，引擎会调用：
+- 只有一个方向光阴影源
+- Point Light 仍然不生成 shadow map
 
-- `mEffectMaterial->update_shader_params(shader, 1)`
+## IBL 与环境光
 
-含义是：
+当前 IBL 已经接入主渲染流程。
 
-- effect material 自己的贴图参数从 **texture unit 1** 开始绑定
-- 例如 `Rain.xml` 的 `noiseMap` 会占用 `GL_TEXTURE1`
+运行时支持两类环境输入：
 
-## IBL（未接入到主渲染）
+- 内置 skybox cubemap
+- 外部 `.hdr` 环境贴图
 
-代码中存在 `nrender::IBLPipeline`（可生成 environment cubemap / irradiance / prefilter / BRDF LUT），但当前 `RenderEngine` 渲染流程 **未调用/未接入 IBLPipeline**，因此本文档不把 IBL 视为已集成功能。
+无论来源是哪一种，最终都会生成并用于着色的资源：
 
+- Environment Cubemap
+- Irradiance Map
+- Prefilter Map
+- BRDF LUT
 
+当前默认展示场景会加载 `Assets/environments/newport_loft/Newport_Loft_Env.hdr` 作为环境源；如果未加载外部环境图，则回退到内置 skybox。
+
+## 材质与延迟可用性
+
+Deferred 不是无条件启用的。当前 mesh 只有在材质输入完整时，才会进入 deferred geometry pass。
+
+必须具备的纹理槽位：
+
+- `baseMap`
+- `metallicMap`
+- `roughnessMap`
+- `normalMap`
+- `aoMap`
+
+如果任意 mesh 不满足这一条件，渲染器会自动退回 Forward 路径。
+
+## Screen Effect 后处理
+
+后处理由 `nrender::PostProcessStack` 驱动。
+
+固定资源约定：
+
+- 全屏顶点着色器：`JGL_Engine/shaders/post_process_vs.shader`
+- effect 片元着色器：由 effect material 决定
+- effect material 常放在 `Assets/screen_effects/`
+
+每帧固定下发的 uniform：
+
+- `hdrBuffer`
+- `time`
+- `screenResolution`
+
+## Debug View
+
+Deferred 模式下支持以下调试输出：
+
+- Final
+- Position
+- Normal
+- Albedo
+- Roughness
+- Metallic
+
+SceneView 中还提供了 G-Buffer 缩略图预览，用于快速切换这些视图。
+
+## 编辑器入口
+
+这些渲染能力在编辑器中的控制位置如下：
+
+- 阴影参数：`Inspector -> Light`
+- HDR / IBL：`Render Settings -> Environment`
+- Forward / Deferred 与 Debug View：`Render Settings -> Render`
+- Shader 热重载：`Render Settings -> Render` 或 `Scene` 工具栏
+- 后处理：`Render Settings -> Screen Effects`

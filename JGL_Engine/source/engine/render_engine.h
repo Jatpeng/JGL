@@ -69,6 +69,12 @@ namespace nengine
     void set_debug_view(DebugView view) { mDebugView = view; }
     DebugView get_debug_view() const { return mDebugView; }
 
+    bool load_environment_map(const std::string& path);
+    void reset_environment_map();
+    bool has_custom_environment_map() const { return !mEnvironmentMapPath.empty(); }
+    const std::string& get_environment_map_path() const { return mEnvironmentMapPath; }
+    bool is_ibl_available() const;
+
     bool set_screen_effect_material(const std::string& path);
     void clear_screen_effect_material();
     bool has_screen_effect_material() const;
@@ -130,7 +136,6 @@ namespace nengine
     void render_transparent_model_overlay();
     void render_fullscreen_quad();
 
-    bool is_ibl_available() const;
     void apply_ibl_to_shader(nshaders::Shader* shader, int irradiance_unit, int prefilter_unit, int brdf_unit) const;
     void upload_lights(nshaders::Shader* shader, int shadow_texture_unit);
     void apply_shadow_state(nshaders::Shader* shader, int shadow_texture_unit, int shadow_light_index) const;
@@ -158,6 +163,7 @@ namespace nengine
     float mDeltaTime = 0.0f;
     float mLastFrame = 0.0f;
     unsigned int mCubemapTexture = 0;
+    std::string mEnvironmentMapPath;
     unsigned int mPlaneTexture = 0;
     std::shared_ptr<IResourceManager> mResources;
 

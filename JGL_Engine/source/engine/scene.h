@@ -42,6 +42,11 @@ namespace nengine
     ~MeshComponent() override;
 
     bool set_model(const std::string& path);
+    bool set_runtime_model(std::shared_ptr<nelems::Model> model, const std::string& debug_label = "Generated");
+    bool set_animation(const std::string& path, const std::string& clip_name = "");
+    bool set_animation_asset(const std::string& path);
+    void clear_animation();
+    void stop_animation();
     bool set_material(const std::string& path);
     bool set_shader(const std::string& path);
     bool reload_shader();
@@ -54,14 +59,27 @@ namespace nengine
     const std::string& material_path() const { return mMaterialPath; }
     const std::string& shader_path() const { return mShaderPath; }
     const std::string& shader_name() const { return mShaderName; }
+    const std::string& animation_path() const { return mAnimationPath; }
+    const std::string& animation_asset_path() const { return mAnimationAssetPath; }
+    const std::string& animation_clip_name() const { return mAnimationClipName; }
 
     bool is_skinned() const { return mIsSkinned; }
+    bool has_animation() const { return mAnimation && mAnimator; }
+    bool is_animation_playing() const { return mAnimationPlaying; }
+    bool is_animation_looping() const { return mAnimationLoop; }
+    float animation_speed() const { return mAnimationSpeed; }
+    void set_animation_playing(bool is_playing) { mAnimationPlaying = is_playing; }
+    void set_animation_looping(bool is_looping) { mAnimationLoop = is_looping; }
+    void set_animation_speed(float speed) { mAnimationSpeed = std::max(0.0f, speed); }
     void tick(float delta_time);
     void apply_skinning(nshaders::Shader* shader) const;
 
     const char* component_type() const override { return "Mesh"; }
 
   private:
+    bool bind_animation_source(const std::string& resolved_path, const std::string& clip_name, bool auto_embedded);
+    void clear_animation_runtime();
+
     std::weak_ptr<IResourceManager> mResources;
     std::shared_ptr<nelems::Model> mModel;
     std::shared_ptr<Material> mMaterial;
@@ -70,9 +88,93 @@ namespace nengine
     std::string mMaterialPath;
     std::string mShaderPath;
     std::string mShaderName;
+    std::string mAnimationPath;
+    std::string mAnimationAssetPath;
+    std::string mAnimationClipName;
     bool mIsSkinned = false;
+    bool mAnimationPlaying = false;
+    bool mAnimationLoop = true;
+    float mAnimationSpeed = 1.0f;
+    bool mAnimationAutoEmbedded = false;
     std::unique_ptr<Animation> mAnimation;
     std::unique_ptr<Animator> mAnimator;
+  };
+
+  class TerrainComponent : public IComponent
+  {
+  public:
+    struct Settings
+    {
+      float width = 32.0f;
+      float depth = 32.0f;
+      int resolution_x = 128;
+      int resolution_z = 128;
+      float height_scale = 4.0f;
+      float height_offset = 0.0f;
+      float uv_scale = 8.0f;
+      float noise_frequency = 0.08f;
+      int noise_octaves = 5;
+      float noise_persistence = 0.5f;
+      float noise_lacunarity = 2.0f;
+      int seed = 1337;
+    };
+
+    TerrainComponent(MeshComponent* mesh, std::shared_ptr<IResourceManager> resources);
+    ~TerrainComponent() override = default;
+
+    const Settings& settings() const { return mSettings; }
+    void apply_settings(const Settings& settings, bool rebuild_immediately = true);
+    bool rebuild();
+
+    float sample_height(float local_x, float local_z) const;
+
+    float width() const { return mSettings.width; }
+    void set_width(float value);
+
+    float depth() const { return mSettings.depth; }
+    void set_depth(float value);
+
+    int resolution_x() const { return mSettings.resolution_x; }
+    void set_resolution_x(int value);
+
+    int resolution_z() const { return mSettings.resolution_z; }
+    void set_resolution_z(int value);
+
+    float height_scale() const { return mSettings.height_scale; }
+    void set_height_scale(float value);
+
+    float height_offset() const { return mSettings.height_offset; }
+    void set_height_offset(float value);
+
+    float uv_scale() const { return mSettings.uv_scale; }
+    void set_uv_scale(float value);
+
+    float noise_frequency() const { return mSettings.noise_frequency; }
+    void set_noise_frequency(float value);
+
+    int noise_octaves() const { return mSettings.noise_octaves; }
+    void set_noise_octaves(int value);
+
+    float noise_persistence() const { return mSettings.noise_persistence; }
+    void set_noise_persistence(float value);
+
+    float noise_lacunarity() const { return mSettings.noise_lacunarity; }
+    void set_noise_lacunarity(float value);
+
+    int seed() const { return mSettings.seed; }
+    void set_seed(int value);
+
+    const char* component_type() const override { return "Terrain"; }
+
+  private:
+    size_t height_index(int x, int z) const;
+    float sample_height_grid(int x, int z) const;
+    float evaluate_height(float local_x, float local_z) const;
+
+    std::weak_ptr<IResourceManager> mResources;
+    MeshComponent* mMesh = nullptr;
+    Settings mSettings;
+    std::vector<float> mHeights;
   };
 
   /**
@@ -165,6 +267,7 @@ namespace nengine
 
     std::shared_ptr<Entity> create_entity(const std::string& name);
     std::shared_ptr<Entity> create_mesh(const std::string& name);
+    std::shared_ptr<Entity> create_terrain(const std::string& name);
     std::shared_ptr<Entity> create_light(const std::string& name);
 
     void remove_entity(uint64_t id);

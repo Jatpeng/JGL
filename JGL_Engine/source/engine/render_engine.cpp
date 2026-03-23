@@ -447,7 +447,43 @@ namespace nengine
       "Assets/built_in/textures/skybox/back.jpg"
     };
     mCubemapTexture = mResources->load_cubemap(faces, false);
+    mEnvironmentMapPath.clear();
     init_ibl_pipeline();
+  }
+
+  bool RenderEngine::load_environment_map(const std::string& path)
+  {
+    if (!mResources)
+      return false;
+
+    const std::string resolved_path = mResources->resolve_path(path);
+    if (resolved_path.empty())
+      return false;
+
+    if (!mIBLPipeline)
+      mIBLPipeline = std::make_unique<nrender::IBLPipeline>();
+
+    if (!mIBLPipeline->init())
+    {
+      std::cout << "[RenderEngine] Failed to initialize IBL pipeline for environment map." << std::endl;
+      mIBLPipeline.reset();
+      return false;
+    }
+
+    if (!mIBLPipeline->load_environment_map(resolved_path))
+    {
+      std::cout << "[RenderEngine] Failed to load environment map: " << resolved_path << std::endl;
+      return false;
+    }
+
+    mCubemapTexture = mIBLPipeline->get_environment_cubemap();
+    mEnvironmentMapPath = resolved_path;
+    return true;
+  }
+
+  void RenderEngine::reset_environment_map()
+  {
+    load_skybox();
   }
 
   void RenderEngine::load_plane()
@@ -1017,7 +1053,15 @@ namespace nengine
     reload_shader(mDeferredLightingShader);
     reload_shader(mDepthShader);
 
-    if (mCubemapTexture != 0)
+    if (!mEnvironmentMapPath.empty())
+    {
+      reloaded_any = true;
+      mCubemapTexture = 0;
+      mIBLPipeline.reset();
+      if (!load_environment_map(mEnvironmentMapPath) || !is_ibl_available())
+        all_ok = false;
+    }
+    else if (mCubemapTexture != 0)
     {
       reloaded_any = true;
       mIBLPipeline.reset();

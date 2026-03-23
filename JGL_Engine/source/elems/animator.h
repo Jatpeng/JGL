@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <glm/glm.hpp>
 #include <map>
 #include <vector>
@@ -32,13 +34,26 @@ public:
 			m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
 	}
 
-	void UpdateAnimation(float dt)
+	void UpdateAnimation(float dt, bool loop = true)
 	{
 		m_DeltaTime = dt;
 		if (m_CurrentAnimation)
 		{
+			const float duration = m_CurrentAnimation->GetDuration();
+			if (duration <= 0.0f)
+				return;
+
 			m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
-			m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
+			if (loop)
+			{
+				m_CurrentTime = std::fmod(m_CurrentTime, duration);
+				if (m_CurrentTime < 0.0f)
+					m_CurrentTime += duration;
+			}
+			else
+			{
+				m_CurrentTime = std::clamp(m_CurrentTime, 0.0f, duration);
+			}
 			CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
 		}
 	}
@@ -47,6 +62,13 @@ public:
 	{
 		m_CurrentAnimation = pAnimation;
 		m_CurrentTime = 0.0f;
+	}
+
+	void StopAnimation()
+	{
+		m_CurrentTime = 0.0f;
+		if (m_CurrentAnimation)
+			CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
 	}
 
 	void CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform)
@@ -76,7 +98,7 @@ public:
 			CalculateBoneTransform(&node->children[i], globalTransformation);
 	}
 
-	std::vector<glm::mat4> GetFinalBoneMatrices()
+	const std::vector<glm::mat4>& GetFinalBoneMatrices() const
 	{
 		return m_FinalBoneMatrices;
 	}

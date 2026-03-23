@@ -1,11 +1,15 @@
 #pragma once
 
+#include <algorithm>
+#include <cassert>
+#include <string>
 #include <vector>
 #include <map>
 #include <glm/glm.hpp>
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include "bone.h"
-#include <functional>
 #include "model.h"
 #include "animdata.h"
 
@@ -22,22 +26,60 @@ class Animation
 public:
 	Animation() = default;
 
-	Animation(const std::string& animationPath, nelems::Model* model)
+	Animation(const std::string& animationPath, nelems::Model* model, const std::string& clipName = "")
 	{
-		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
-		assert(scene && scene->mRootNode);
-		auto animation = scene->mAnimations[0];
-		m_Duration = animation->mDuration;
-		m_TicksPerSecond = animation->mTicksPerSecond;
-		aiMatrix4x4 globalTransformation = scene->mRootNode->mTransformation;
-		globalTransformation = globalTransformation.Inverse();
-		ReadHeirarchyData(m_RootNode, scene->mRootNode);
-		ReadMissingBones(animation, *model);
+		load(animationPath, model, clipName);
 	}
 
 	~Animation()
 	{
+	}
+
+	bool load(const std::string& animationPath, nelems::Model* model, const std::string& clipName = "")
+	{
+		m_Duration = 0.0f;
+		m_TicksPerSecond = 25.0f;
+		m_Bones.clear();
+		m_RootNode = AssimpNodeData {};
+		m_BoneInfoMap.clear();
+		m_ClipName.clear();
+		m_IsValid = false;
+
+		if (!model)
+			return false;
+
+		Assimp::Importer importer;
+		const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
+		if (!scene || !scene->mRootNode || scene->mNumAnimations == 0)
+			return false;
+
+		const aiAnimation* selectedAnimation = scene->mAnimations[0];
+		if (!clipName.empty())
+		{
+			selectedAnimation = nullptr;
+			for (unsigned int index = 0; index < scene->mNumAnimations; ++index)
+			{
+				const aiAnimation* candidate = scene->mAnimations[index];
+				if (candidate && std::string(candidate->mName.C_Str()) == clipName)
+				{
+					selectedAnimation = candidate;
+					break;
+				}
+			}
+		}
+
+		if (!selectedAnimation)
+			return false;
+
+		m_Duration = static_cast<float>(selectedAnimation->mDuration);
+		m_TicksPerSecond = selectedAnimation->mTicksPerSecond > 0.0
+			? static_cast<float>(selectedAnimation->mTicksPerSecond)
+			: 25.0f;
+		m_ClipName = selectedAnimation->mName.length > 0 ? selectedAnimation->mName.C_Str() : clipName;
+		ReadHeirarchyData(m_RootNode, scene->mRootNode);
+		ReadAnimationChannels(selectedAnimation, *model);
+		m_IsValid = m_Duration > 0.0f && !m_Bones.empty();
+		return m_IsValid;
 	}
 
 	Bone* FindBone(const std::string& name)
@@ -53,35 +95,32 @@ public:
 	}
 
 	
-	inline float GetTicksPerSecond() { return m_TicksPerSecond; }
-	inline float GetDuration() { return m_Duration;}
-	inline const AssimpNodeData& GetRootNode() { return m_RootNode; }
-	inline const std::map<std::string,BoneInfo>& GetBoneIDMap() 
+	inline float GetTicksPerSecond() const { return m_TicksPerSecond; }
+	inline float GetDuration() const { return m_Duration;}
+	inline const AssimpNodeData& GetRootNode() const { return m_RootNode; }
+	inline const std::map<std::string,BoneInfo>& GetBoneIDMap() const
 	{ 
 		return m_BoneInfoMap;
 	}
+	inline const std::string& GetClipName() const { return m_ClipName; }
+	inline bool IsValid() const { return m_IsValid; }
 
 private:
-	void ReadMissingBones(const aiAnimation* animation, nelems::Model& model)
+	void ReadAnimationChannels(const aiAnimation* animation, nelems::Model& model)
 	{
 		int size = animation->mNumChannels;
 
-		auto& boneInfoMap = model.GetBoneInfoMap();//getting m_BoneInfoMap from Model class
-		int& boneCount = model.GetBoneCount(); //getting the m_BoneCounter from Model class
+		auto& boneInfoMap = model.GetBoneInfoMap();
 
-		//reading channels(bones engaged in an animation and their keyframes)
 		for (int i = 0; i < size; i++)
 		{
 			auto channel = animation->mChannels[i];
 			std::string boneName = channel->mNodeName.data;
-
-			if (boneInfoMap.find(boneName) == boneInfoMap.end())
-			{
-				boneInfoMap[boneName].id = boneCount;
-				boneCount++;
-			}
+			int boneId = -1;
+			if (boneInfoMap.find(boneName) != boneInfoMap.end())
+				boneId = boneInfoMap[boneName].id;
 			m_Bones.push_back(Bone(channel->mNodeName.data,
-				boneInfoMap[channel->mNodeName.data].id, channel));
+				boneId, channel));
 		}
 
 		m_BoneInfoMap = boneInfoMap;
@@ -102,10 +141,12 @@ private:
 			dest.children.push_back(newData);
 		}
 	}
-	float m_Duration;
-	int m_TicksPerSecond;
+	float m_Duration = 0.0f;
+	float m_TicksPerSecond = 25.0f;
 	std::vector<Bone> m_Bones;
 	AssimpNodeData m_RootNode;
 	std::map<std::string, BoneInfo> m_BoneInfoMap;
+	std::string m_ClipName;
+	bool m_IsValid = false;
 };
 
