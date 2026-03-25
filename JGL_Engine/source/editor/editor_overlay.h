@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "render/ui_context.h"
+#include "render/render_base.h"
 #include "ui/editor_panel_common.h"
 #include "ui/inspector_panel.h"
 #include "ui/render_settings_panel.h"
@@ -25,7 +25,7 @@ namespace neditor
     void render_dockspace();
 
   private:
-    std::unique_ptr<nrender::UIContext> mUiContext;
+    std::unique_ptr<nrender::RenderContext> mUiContext;
     nui::EditorPanelState mPanelState;
     nui::SceneHierarchyPanel mSceneHierarchyPanel;
     nui::InspectorPanel mInspectorPanel;

@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "render/renderdoc_capture.h"
+#include "render/device/render_device.h"
 
 namespace nengine
 {
@@ -160,14 +161,28 @@ namespace nengine
 
   RenderEngine::RenderEngine(const RenderEngine::CreateInfo& create_info)
   {
+    mGraphicsBackend = nrender::RenderDeviceManager::instance().backend();
     mRenderTargetSize = create_info.render_target_size;
     if (mRenderTargetSize.x <= 0)
       mRenderTargetSize.x = 800;
     if (mRenderTargetSize.y <= 0)
       mRenderTargetSize.y = 600;
 
-    mFrameBuffer = std::make_unique<nrender::OpenGL_FrameBuffer>();
-    mFrameBuffer->create_buffers(mRenderTargetSize.x, mRenderTargetSize.y);
+    if (is_scene_renderer_available())
+    {
+      mFrameBuffer = nrender::RenderDeviceManager::instance().create_frame_buffer();
+      if (mFrameBuffer)
+        mFrameBuffer->create_buffers(mRenderTargetSize.x, mRenderTargetSize.y);
+      else
+        std::cout << "[RenderEngine] Failed to create frame buffer." << std::endl;
+    }
+    else
+    {
+      std::cout
+        << "[RenderEngine] Backend " << graphics_backend_name()
+        << " is active. Scene rendering remains OpenGL-only for now."
+        << std::endl;
+    }
     mRenderDocCapture = create_info.renderdoc_capture;
     if (!mRenderDocCapture)
       mRenderDocCapture = std::make_shared<nrender::RenderDocCapture>();
@@ -183,19 +198,25 @@ namespace nengine
     if (!mResources)
       mResources = std::make_shared<ResourceManager>();
 
-    if (create_info.load_default_skybox)
-      load_skybox();
-    if (create_info.load_default_plane)
-      load_plane();
+    if (is_scene_renderer_available())
+    {
+      if (create_info.load_default_skybox)
+        load_skybox();
+      if (create_info.load_default_plane)
+        load_plane();
 
-    init_deferred_pipeline();
-    init_shadow_pipeline();
-    mPostProcessStack = std::make_unique<nrender::PostProcessStack>();
-    mPostProcessStack->init(mResources, mRenderTargetSize.x, mRenderTargetSize.y);
+      init_deferred_pipeline();
+      init_shadow_pipeline();
+      mPostProcessStack = std::make_unique<nrender::PostProcessStack>();
+      mPostProcessStack->init(mResources, mRenderTargetSize.x, mRenderTargetSize.y);
+    }
   }
 
   RenderEngine::~RenderEngine()
   {
+    if (!is_scene_renderer_available())
+      return;
+
     if (mSkyShader && mSkyShader->get_program_id() != 0)
       mSkyShader->unload();
     if (mPlaneShader && mPlaneShader->get_program_id() != 0)
@@ -354,13 +375,18 @@ namespace nengine
       return;
 
     mRenderTargetSize = { width, height };
-    mFrameBuffer->create_buffers(width, height);
+    if (mCamera)
+      mCamera->set_aspect(static_cast<float>(width) / static_cast<float>(height));
+
+    if (!is_scene_renderer_available())
+      return;
+
+    if (mFrameBuffer)
+      mFrameBuffer->create_buffers(width, height);
     if (mGBuffer)
       mGBuffer->resize(width, height);
     if (mPostProcessStack)
       mPostProcessStack->resize(width, height);
-    if (mCamera)
-      mCamera->set_aspect(static_cast<float>(width) / static_cast<float>(height));
   }
 
   void RenderEngine::on_mouse_move(double x, double y, nelems::EInputButton button)
@@ -383,28 +409,43 @@ namespace nengine
 
   bool RenderEngine::set_screen_effect_material(const std::string& path)
   {
+    if (!is_scene_renderer_available())
+      return false;
+
     return mPostProcessStack && mPostProcessStack->set_effect_material(path);
   }
 
   void RenderEngine::clear_screen_effect_material()
   {
+    if (!is_scene_renderer_available())
+      return;
+
     if (mPostProcessStack)
       mPostProcessStack->clear_effect_material();
   }
 
   bool RenderEngine::has_screen_effect_material() const
   {
+    if (!is_scene_renderer_available())
+      return false;
+
     return mPostProcessStack && mPostProcessStack->has_effect();
   }
 
   std::shared_ptr<Material> RenderEngine::get_screen_effect_material() const
   {
+    if (!is_scene_renderer_available())
+      return nullptr;
+
     return mPostProcessStack ? mPostProcessStack->get_effect_material() : nullptr;
   }
 
   const std::string& RenderEngine::get_screen_effect_material_path() const
   {
     static const std::string empty_path;
+    if (!is_scene_renderer_available())
+      return empty_path;
+
     return mPostProcessStack ? mPostProcessStack->get_effect_material_path() : empty_path;
   }
 
@@ -626,6 +667,14 @@ namespace nengine
 
   void RenderEngine::load_skybox()
   {
+    if (!is_scene_renderer_available())
+    {
+      mCubemapTexture = 0;
+      mEnvironmentMapPath.clear();
+      mIBLPipeline.reset();
+      return;
+    }
+
     mSkyShader = mResources->load_shader_program(
       "JGL_Engine/shaders/buit_in/skybox_vs.shader",
       "JGL_Engine/shaders/buit_in/skybox_fs.shader");
@@ -650,6 +699,16 @@ namespace nengine
 
   bool RenderEngine::load_environment_map(const std::string& path)
   {
+    if (!is_scene_renderer_available())
+    {
+      std::cout
+        << "[RenderEngine] Environment map loading is unavailable on "
+        << graphics_backend_name()
+        << " until the runtime renderer is implemented."
+        << std::endl;
+      return false;
+    }
+
     if (!mResources)
       return false;
 
@@ -680,11 +739,27 @@ namespace nengine
 
   void RenderEngine::reset_environment_map()
   {
+    if (!is_scene_renderer_available())
+    {
+      mCubemapTexture = 0;
+      mEnvironmentMapPath.clear();
+      mIBLPipeline.reset();
+      return;
+    }
+
     load_skybox();
   }
 
   void RenderEngine::load_plane()
   {
+    if (!is_scene_renderer_available())
+    {
+      mPlaneShader.reset();
+      mPlane.reset();
+      mPlaneTexture = 0;
+      return;
+    }
+
     mPlaneShader = mResources->load_shader_program(
       "JGL_Engine/shaders/pbr_vs.shader",
       "JGL_Engine/shaders/pbr_fs.shader");
@@ -954,6 +1029,9 @@ namespace nengine
 
   bool RenderEngine::is_deferred_available() const
   {
+    if (!is_scene_renderer_available())
+      return false;
+
     if (!mGBuffer || !mDeferredGeometryShader || !mDeferredLightingShader)
       return false;
     if (mDeferredGeometryShader->get_program_id() == 0 || mDeferredLightingShader->get_program_id() == 0)
@@ -1003,6 +1081,9 @@ namespace nengine
 
   void RenderEngine::lighting_pass()
   {
+    if (!mFrameBuffer)
+      return;
+
     mFrameBuffer->bind();
     glDisable(GL_DEPTH_TEST);
 
@@ -1029,7 +1110,8 @@ namespace nengine
       render_skybox();
 
     render_transparent_model_overlay();
-    mFrameBuffer->unbind();
+    if (mFrameBuffer)
+      mFrameBuffer->unbind();
   }
 
   void RenderEngine::render_plane_deferred()
@@ -1074,6 +1156,9 @@ namespace nengine
 
   bool RenderEngine::is_ibl_available() const
   {
+    if (!is_scene_renderer_available())
+      return false;
+
     return mIBLPipeline &&
            mIBLPipeline->get_irradiance_map() != 0 &&
            mIBLPipeline->get_prefilter_map() != 0 &&
@@ -1171,6 +1256,9 @@ namespace nengine
 
   void RenderEngine::render_forward_to_framebuffer()
   {
+    if (!mFrameBuffer)
+      return;
+
     mFrameBuffer->bind();
 
     if (!mModelTransparent)
@@ -1193,6 +1281,9 @@ namespace nengine
       return;
     }
 
+    if (!mFrameBuffer)
+      return;
+
     geometry_pass();
     lighting_pass();
     forward_overlay_pass();
@@ -1201,6 +1292,12 @@ namespace nengine
   void RenderEngine::render()
   {
     update_frame_state();
+    if (!is_scene_renderer_available())
+    {
+      mRenderQueue.clear();
+      return;
+    }
+
     build_render_queue();
     shadow_pass();
 
@@ -1221,6 +1318,16 @@ namespace nengine
 
   bool RenderEngine::reload_runtime_shaders()
   {
+    if (!is_scene_renderer_available())
+    {
+      std::cout
+        << "[RenderEngine] Shader hot-reload is unavailable on "
+        << graphics_backend_name()
+        << " until the runtime renderer is implemented."
+        << std::endl;
+      return false;
+    }
+
     bool reloaded_any = false;
     bool all_ok = true;
 
@@ -1288,6 +1395,9 @@ namespace nengine
 
   uint32_t RenderEngine::get_output_texture()
   {
+    if (!is_scene_renderer_available())
+      return 0;
+
     if (mPostProcessStack)
     {
       const uint32_t post_process_texture = mPostProcessStack->get_output_texture();

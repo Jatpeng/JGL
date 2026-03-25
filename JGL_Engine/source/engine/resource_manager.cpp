@@ -5,6 +5,7 @@
 #include <cctype>
 #include <filesystem>
 
+#include "render/device/render_device.h"
 #include "utils/filesystem.h"
 #include "utils/texturessystem.h"
 
@@ -105,6 +106,17 @@ namespace nengine
     const std::string& fragment_path,
     const std::string& geometry_path)
   {
+    const nrender::GraphicsBackend backend = nrender::RenderDeviceManager::instance().backend();
+    if (backend != nrender::GraphicsBackend::OpenGL)
+    {
+      std::cout
+        << "[ResourceManager] Shader program creation is unavailable on "
+        << nrender::graphics_backend_name(backend)
+        << " until the runtime renderer is implemented."
+        << std::endl;
+      return nullptr;
+    }
+
     const std::string resolved_vertex_path = resolve_path(vertex_path);
     const std::string resolved_fragment_path = resolve_path(fragment_path);
     const std::string resolved_geometry_path = geometry_path.empty()
@@ -123,6 +135,9 @@ namespace nengine
 
   uint32_t ResourceManager::load_texture_2d(const std::string& path, GLint tex_wrapping)
   {
+    if (nrender::RenderDeviceManager::instance().backend() != nrender::GraphicsBackend::OpenGL)
+      return 0;
+
     const std::string resolved_path = resolve_path(path);
     if (resolved_path.empty())
       return 0;
@@ -139,6 +154,9 @@ namespace nengine
 
   uint32_t ResourceManager::load_cubemap(const std::vector<std::string>& faces, bool is_flip)
   {
+    if (nrender::RenderDeviceManager::instance().backend() != nrender::GraphicsBackend::OpenGL)
+      return 0;
+
     std::vector<std::string> resolved_faces;
     resolved_faces.reserve(faces.size());
 

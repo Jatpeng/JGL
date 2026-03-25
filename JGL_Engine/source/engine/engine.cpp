@@ -5,6 +5,7 @@
 #include "engine/render_engine.h"
 #include "engine/resource_manager.h"
 #include "engine/scene_loader.h"
+#include "render/device/render_device.h"
 #include "window/jgl_window.h"
 #include "window/window_overlay.h"
 
@@ -32,6 +33,11 @@ namespace nengine
   {
     if (mInitialized)
       return true;
+
+    const nrender::GraphicsBackend resolved_backend =
+      nrender::resolve_graphics_backend_from_env(mCreateInfo.render_backend);
+    if (!nrender::RenderDeviceManager::instance().initialize(resolved_backend))
+      return false;
 
     mWindow = std::make_unique<nwindow::GLWindow>();
 
@@ -114,6 +120,17 @@ namespace nengine
 
   void Engine::create_default_scene_if_needed()
   {
+    if (auto* renderer = render_engine(); renderer && !renderer->is_scene_renderer_available())
+    {
+      std::cout
+        << "[Engine] Backend " << renderer->graphics_backend_name()
+        << " uses an empty default scene until the runtime renderer is implemented."
+        << std::endl;
+      renderer->set_plane_show(false);
+      set_active_scene(create_scene("default"));
+      return;
+    }
+
     SceneResourceDefinition scene_definition;
     std::string scene_error;
     if (load_scene_resource("Assets/scenes/default_scene.xml", mResources, &scene_definition, &scene_error) &&

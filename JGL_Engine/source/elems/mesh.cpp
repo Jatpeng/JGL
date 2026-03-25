@@ -4,18 +4,33 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
-#include "render/opengl_buffer_manager.h"
+#include "render/device/render_device.h"
 using namespace std;
 namespace nelems
 {
+  namespace
+  {
+    std::unique_ptr<nrender::VertexIndexBuffer> create_vertex_index_buffer()
+    {
+      auto buffer = nrender::RenderDeviceManager::instance().create_vertex_index_buffer();
+      if (!buffer)
+      {
+        std::cout << "[Mesh] Failed to create vertex/index buffer for backend "
+                  << nrender::graphics_backend_name(nrender::RenderDeviceManager::instance().backend())
+                  << "." << std::endl;
+      }
+      return buffer;
+    }
+  }
+
   Mesh::Mesh()
   {
-      mRenderBufferMgr = std::make_unique<nrender::OpenGL_VertexIndexBuffer>();
+      mRenderBufferMgr = create_vertex_index_buffer();
   }
   // constructor
   Mesh::Mesh(vector<VertexHolder> vertices, vector<unsigned int> indices)
   {
-      mRenderBufferMgr = std::make_unique<nrender::OpenGL_VertexIndexBuffer>();
+      mRenderBufferMgr = create_vertex_index_buffer();
       this->mVertices = vertices;
       this->mVertexIndices = indices;
       create_buffers();
@@ -28,7 +43,7 @@ namespace nelems
   {
       this->mVertices = other.mVertices;
       this->mVertexIndices = other.mVertexIndices;
-      mRenderBufferMgr = std::make_unique<nrender::OpenGL_VertexIndexBuffer>();
+      mRenderBufferMgr = create_vertex_index_buffer();
       create_buffers();
   }
 
@@ -80,26 +95,36 @@ namespace nelems
 
   void Mesh::create_buffers()
   {
+    if (!mRenderBufferMgr)
+      mRenderBufferMgr = create_vertex_index_buffer();
+
+    if (!mRenderBufferMgr)
+      return;
+
     mRenderBufferMgr->create_buffers(mVertices, mVertexIndices);
   }
 
   void Mesh::delete_buffers()
   {
-    mRenderBufferMgr->delete_buffers();
+    if (mRenderBufferMgr)
+      mRenderBufferMgr->delete_buffers();
   }
 
   void Mesh::bind()
   {
-    mRenderBufferMgr->bind();
+    if (mRenderBufferMgr)
+      mRenderBufferMgr->bind();
   }
 
   void Mesh::unbind()
   {
-    mRenderBufferMgr->unbind();
+    if (mRenderBufferMgr)
+      mRenderBufferMgr->unbind();
   }
 
   void Mesh::render()
   {
-    mRenderBufferMgr->draw((int) mVertexIndices.size());
+    if (mRenderBufferMgr)
+      mRenderBufferMgr->draw((int) mVertexIndices.size());
   }
 }

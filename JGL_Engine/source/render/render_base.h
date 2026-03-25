@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "elems/vertex_holder.h"
 
 #include "window/window.h"
@@ -12,6 +14,8 @@ namespace nrender
     VertexIndexBuffer() : mVBO{ 0 }, mVAO{ 0 }, mIBO{ 0 }
     {}
 
+    virtual ~VertexIndexBuffer() = default;
+
     virtual void create_buffers(const std::vector<nelems::VertexHolder>& vertices, const std::vector<unsigned int>& indices) = 0;
 
     virtual void delete_buffers() = 0;
@@ -23,9 +27,9 @@ namespace nrender
     virtual void draw(int index_count) = 0;
 
   protected:
-    GLuint mVBO;
-    GLuint mVAO;
-    GLuint mIBO;
+    uint32_t mVBO = 0;
+    uint32_t mVAO = 0;
+    uint32_t mIBO = 0;
   };
 
   class FrameBuffer
@@ -33,6 +37,8 @@ namespace nrender
   public:
     FrameBuffer() : mFBO { 0 }, mDepthId {0}
     {}
+
+    virtual ~FrameBuffer() = default;
 
     virtual void create_buffers(int32_t width, int32_t height) = 0;
 
@@ -60,6 +66,8 @@ namespace nrender
   public:
 
     RenderContext() : mWindow(nullptr) {}
+
+    virtual ~RenderContext() = default;
 
     virtual bool init(nwindow::IWindow* window)
     {

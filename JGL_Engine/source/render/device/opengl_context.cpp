@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "opengl_context.h"
+#include "render/device/opengl_context.h"
 
 namespace nrender
 {

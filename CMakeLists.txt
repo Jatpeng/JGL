@@ -32,6 +32,19 @@ file(GLOB_RECURSE CORE_SOURCES
     ${SRC_ROOT}/*.cpp
 )
 
+file(GLOB_RECURSE CORE_PRIVATE_HEADERS
+    CONFIGURE_DEPENDS
+    ${SRC_ROOT}/*.h
+    ${SRC_ROOT}/*.hpp
+)
+
+file(GLOB_RECURSE ENGINE_PUBLIC_HEADERS
+    CONFIGURE_DEPENDS
+    ${JGL_ENGINE_DIR}/include/*.h
+    ${JGL_ENGINE_DIR}/include/*.hpp
+    ${JGL_ENGINE_DIR}/include/*.inl
+)
+
 file(GLOB_RECURSE APP_3RDPARTY_SOURCES
     CONFIGURE_DEPENDS
     ${SRC_ROOT}/3rdparty/*.cpp
@@ -49,7 +62,7 @@ file(GLOB_RECURSE EDITOR_SOURCES
 )
 
 list(APPEND EDITOR_SOURCES
-    ${SRC_ROOT}/render/ui_context.cpp
+    ${SRC_ROOT}/render/device/ui_context.cpp
 )
 
 list(REMOVE_ITEM CORE_SOURCES ${APP_3RDPARTY_SOURCES})
@@ -72,14 +85,53 @@ set(IMGUI_BACKEND_SOURCES
     ${SRC_ROOT}/3rdparty/imgui-docking/backends/imgui_impl_opengl3.cpp
 )
 
+if(WIN32)
+    list(APPEND IMGUI_BACKEND_SOURCES
+        ${SRC_ROOT}/3rdparty/imgui-docking/backends/imgui_impl_dx11.cpp
+    )
+
+    list(APPEND EDITOR_SOURCES
+        ${SRC_ROOT}/render/device/directx11_ui_context.cpp
+    )
+endif()
+
+list(REMOVE_ITEM CORE_SOURCES ${EDITOR_SOURCES})
+
 set(STB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/STB_IMAGE/stb_image.cpp
 )
+
+set(STB_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/STB_IMAGE/stb_image.h
+)
+
+list(FILTER CORE_PRIVATE_HEADERS EXCLUDE REGEX "/source/(3rdparty|editor|ui|python)/")
+list(REMOVE_ITEM CORE_PRIVATE_HEADERS ${SRC_ROOT}/main.h)
+
+function(group_project_tree prefix root)
+    if(ARGN)
+        source_group(TREE "${root}" PREFIX "${prefix}" FILES ${ARGN})
+    endif()
+endfunction()
 
 add_library(jgl_core STATIC
     ${CORE_SOURCES}
     ${STB_SOURCES}
 )
+
+target_sources(jgl_core PRIVATE
+    ${CORE_PRIVATE_HEADERS}
+    ${ENGINE_PUBLIC_HEADERS}
+    ${STB_HEADERS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+)
+
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt PROPERTIES HEADER_FILE_ONLY TRUE)
+
+group_project_tree("Source" "${SRC_ROOT}" ${CORE_SOURCES} ${CORE_PRIVATE_HEADERS})
+group_project_tree("Include" "${JGL_ENGINE_DIR}/include" ${ENGINE_PUBLIC_HEADERS})
+group_project_tree("ThirdParty\\stb" "${CMAKE_CURRENT_SOURCE_DIR}/STB_IMAGE" ${STB_SOURCES} ${STB_HEADERS})
+source_group("CMake" FILES ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt)
 
 set_target_properties(jgl_core PROPERTIES
     POSITION_INDEPENDENT_CODE ON
@@ -129,6 +181,8 @@ if(WIN32)
         glfw3
         glew32s
         assimp
+        d3d11
+        dxgi
     )
 else()
     find_package(glfw3 REQUIRED)
@@ -297,7 +351,7 @@ if(JGL_ENABLE_PYTHON)
         ${PYTHON_BINDING_SOURCES}
     )
 
-    target_link_libraries(pyjgl PRIVATE jgl_core)
+    target_link_libraries(pyjgl PRIVATE jgl_core jgl_editor)
 
     set_target_properties(pyjgl PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

@@ -4,7 +4,8 @@
 #include "engine/resource_manager.h"
 #include "engine/scene.h"
 #include "render/deferred_gbuffer.h"
-#include "render/opengl_buffer_manager.h"
+#include "render/render_base.h"
+#include "render/device/render_device.h"
 #include "shader/shader_util.h"
 #include "render/post_process/post_process_stack.h"
 #include "render/ibl/ibl_pipeline.h"
@@ -65,6 +66,9 @@ namespace nengine
 
     void set_render_mode(RenderMode mode) { mRenderMode = mode; }
     RenderMode get_render_mode() const { return mRenderMode; }
+    nrender::GraphicsBackend graphics_backend() const { return mGraphicsBackend; }
+    const char* graphics_backend_name() const { return nrender::graphics_backend_name(mGraphicsBackend); }
+    bool is_scene_renderer_available() const { return mGraphicsBackend == nrender::GraphicsBackend::OpenGL; }
 
     void set_debug_view(DebugView view) { mDebugView = view; }
     DebugView get_debug_view() const { return mDebugView; }
@@ -179,10 +183,11 @@ namespace nengine
 
   private:
     std::unique_ptr<nelems::Camera> mCamera;
-    std::unique_ptr<nrender::OpenGL_FrameBuffer> mFrameBuffer;
+    std::unique_ptr<nrender::FrameBuffer> mFrameBuffer;
     std::shared_ptr<Scene> mScene;
 
     glm::ivec2 mRenderTargetSize = { 800, 600 };
+    nrender::GraphicsBackend mGraphicsBackend = nrender::GraphicsBackend::OpenGL;
 
     std::unique_ptr<nshaders::Shader> mSkyShader;
     std::shared_ptr<nelems::Model> mSkyBox;

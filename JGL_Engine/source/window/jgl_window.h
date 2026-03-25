@@ -2,7 +2,7 @@
 
 #include "engine/render_engine.h"
 #include "engine/scene.h"
-#include "render/opengl_context.h"
+#include "render/render_base.h"
 #include "window/window.h"
 #include "window/window_overlay.h"
 
@@ -20,7 +20,6 @@ namespace nwindow
     GLWindow() :
       mIsRunning(true), mWindow(nullptr)
     {
-      mRenderCtx = std::make_unique<nrender::OpenGL_Context>();
     }
 
     ~GLWindow();
@@ -60,7 +59,7 @@ namespace nwindow
   private:
     GLFWwindow* mWindow;
 
-    std::unique_ptr<nrender::OpenGL_Context> mRenderCtx;
+    std::unique_ptr<nrender::RenderContext> mRenderCtx;
     std::shared_ptr<nrender::RenderDocCapture> mRenderDocCapture;
     std::shared_ptr<nengine::RenderEngine> mEngine;
     std::shared_ptr<IWindowOverlay> mOverlay;

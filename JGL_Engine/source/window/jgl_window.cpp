@@ -2,7 +2,7 @@
 
 #include "jgl_window.h"
 #include "elems/input.h"
-#include "render/opengl_context.h"
+#include "render/device/render_device.h"
 #include "render/renderdoc_capture.h"
 
 #ifdef _WIN32
@@ -38,7 +38,15 @@ namespace nwindow
     Title = title;
 
     mRenderDocCapture = std::make_shared<nrender::RenderDocCapture>();
-    mRenderCtx->init(this);
+    mRenderCtx = nrender::RenderDeviceManager::instance().create_render_context();
+    if (!mRenderCtx)
+      return false;
+
+    if (!mRenderCtx->init(this))
+    {
+      mRenderCtx.reset();
+      return false;
+    }
 
     auto resolved_engine_info = engine_info;
     resolved_engine_info.render_target_size = { width, height };
@@ -56,7 +64,8 @@ namespace nwindow
   {
     set_overlay(nullptr);
     mEngine.reset();
-    mRenderCtx->end();
+    if (mRenderCtx)
+      mRenderCtx->end();
   }
 
   void GLWindow::on_resize(int width, int height)
@@ -98,7 +107,8 @@ namespace nwindow
     const bool capture_started = mEngine && mEngine->begin_frame_capture(const_cast<void*>(renderdoc_window_handle));
 
     // Clear the view
-    mRenderCtx->pre_render();
+    if (mRenderCtx)
+      mRenderCtx->pre_render();
 
     if (mOverlay)
     {
@@ -109,7 +119,8 @@ namespace nwindow
     }
 
     // Render end, swap buffers
-    mRenderCtx->post_render();
+    if (mRenderCtx)
+      mRenderCtx->post_render();
 
     if (capture_started && mEngine)
       mEngine->end_frame_capture(const_cast<void*>(renderdoc_window_handle));

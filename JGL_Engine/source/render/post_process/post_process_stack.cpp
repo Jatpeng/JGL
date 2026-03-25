@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "post_process_stack.h"
 
-#include "render/opengl_buffer_manager.h"
+#include "render/device/render_device.h"
 
 namespace nrender
 {
@@ -171,7 +171,10 @@ namespace nrender
       return;
 
     if (!mOutputBuffer)
-      mOutputBuffer = std::make_unique<OpenGL_FrameBuffer>();
+      mOutputBuffer = RenderDeviceManager::instance().create_frame_buffer();
+
+    if (!mOutputBuffer)
+      return;
 
     if (mOutputWidth == width && mOutputHeight == height && mOutputBuffer->get_texture() != 0)
       return;

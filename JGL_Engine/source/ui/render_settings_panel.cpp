@@ -13,8 +13,19 @@ namespace nui
     if (!context.engine)
       return;
 
+    const bool scene_renderer_available = context.engine->is_scene_renderer_available();
+    const char* backend_name = context.engine->graphics_backend_name();
     ImGui::SetNextWindowSize(ImVec2(420.0f, 520.0f), ImGuiCond_FirstUseEver);
     ImGui::Begin("Render Settings");
+
+    if (!scene_renderer_available)
+    {
+      ImGui::TextColored(
+        ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+        "%s device path is active. Environment, render and screen-effect controls stay disabled until the runtime renderer is implemented.",
+        backend_name);
+      ImGui::Separator();
+    }
 
     bool transparent = context.engine->is_model_transparent();
     if (ImGui::Checkbox("Transparent Meshes", &transparent))
@@ -36,6 +47,8 @@ namespace nui
 
     if (ImGui::CollapsingHeader("Environment", ImGuiTreeNodeFlags_DefaultOpen))
     {
+      begin_disabled(!scene_renderer_available);
+
       const bool has_custom_environment = context.engine->has_custom_environment_map();
       const std::string environment_source = has_custom_environment
         ? display_project_path(context.engine->get_environment_map_path())
@@ -107,10 +120,13 @@ namespace nui
         ImGui::TextWrapped("%s", state.environment_status.c_str());
 
       ImGui::TextDisabled("Skybox visibility is controlled from Scene Hierarchy.");
+      end_disabled(!scene_renderer_available);
     }
 
     if (ImGui::CollapsingHeader("Render", ImGuiTreeNodeFlags_DefaultOpen))
     {
+      begin_disabled(!scene_renderer_available);
+
       int render_mode = context.engine->get_render_mode() == nengine::RenderEngine::RenderMode::Forward ? 0 : 1;
       if (ImGui::Combo("Mode", &render_mode, "Forward\0Deferred\0"))
       {
@@ -142,10 +158,14 @@ namespace nui
 
       if (!state.shader_reload_status.empty())
         ImGui::TextWrapped("%s", state.shader_reload_status.c_str());
+
+      end_disabled(!scene_renderer_available);
     }
 
     if (ImGui::CollapsingHeader("Screen Effects", ImGuiTreeNodeFlags_DefaultOpen))
     {
+      begin_disabled(!scene_renderer_available);
+
       const std::string current_effect_path = context.engine->get_screen_effect_material_path();
       const std::string current_effect_label = context.engine->has_screen_effect_material()
         ? file_label(current_effect_path)
@@ -199,6 +219,8 @@ namespace nui
           draw_material_parameter_editor(effect_material, context.texture_presets);
         }
       }
+
+      end_disabled(!scene_renderer_available);
     }
 
     if (ImGui::CollapsingHeader("Capture", ImGuiTreeNodeFlags_DefaultOpen))

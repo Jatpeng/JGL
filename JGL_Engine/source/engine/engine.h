@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "render/device/render_device.h"
 #include "engine/scene.h"
 
 namespace nwindow
@@ -34,6 +35,7 @@ namespace nengine
       std::string title = "JGL_Engine";
       bool create_default_scene = true;
       bool show_plane = false;
+      nrender::GraphicsBackend render_backend = nrender::GraphicsBackend::OpenGL;
       CreateInfo() {}
     };
 

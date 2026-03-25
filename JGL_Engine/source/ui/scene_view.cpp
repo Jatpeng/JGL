@@ -43,6 +43,8 @@ namespace nui
     if (!mEngine)
       return;
 
+    const bool scene_renderer_available = mEngine->is_scene_renderer_available();
+    const char* backend_name = mEngine->graphics_backend_name();
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->Pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImGui::GetMainViewport()->Size, ImGuiCond_FirstUseEver);
     ImGui::Begin("Scene");
@@ -50,10 +52,12 @@ namespace nui
     const bool deferred_available = mEngine->is_deferred_available();
     const bool deferred_requested = mEngine->get_render_mode() == nengine::RenderEngine::RenderMode::Deferred;
     const bool show_gbuffer_thumbnails =
+      scene_renderer_available &&
       deferred_requested &&
       deferred_available &&
       mShowGBufferPreviews;
     const bool show_ibl_thumbnails =
+      scene_renderer_available &&
       state.show_ibl_previews &&
       mEngine->is_ibl_available();
 
@@ -68,10 +72,13 @@ namespace nui
     end_disabled(!capture_available);
 
     ImGui::SameLine();
+    begin_disabled(!scene_renderer_available);
     if (ImGui::Button("Reload Shaders"))
       mEngine->reload_runtime_shaders();
+    end_disabled(!scene_renderer_available);
 
     ImGui::SameLine();
+    begin_disabled(!scene_renderer_available);
     bool show_plane = mEngine->is_plane_show();
     if (ImGui::Checkbox("Plane", &show_plane))
       mEngine->set_plane_show(show_plane);
@@ -90,8 +97,9 @@ namespace nui
         ? nengine::RenderEngine::RenderMode::Forward
         : nengine::RenderEngine::RenderMode::Deferred);
     }
+    end_disabled(!scene_renderer_available);
 
-    if (mEngine->get_render_mode() == nengine::RenderEngine::RenderMode::Deferred)
+    if (scene_renderer_available && mEngine->get_render_mode() == nengine::RenderEngine::RenderMode::Deferred)
     {
       ImGui::SameLine();
       ImGui::SetNextItemWidth(140.0f);
@@ -126,11 +134,23 @@ namespace nui
 
     const glm::ivec2 target_size = mEngine->get_render_target_size();
     const char* active_mode = deferred_requested && deferred_available ? "Deferred" : "Forward";
-    ImGui::TextDisabled("Target %d x %d | Active %s", target_size.x, target_size.y, active_mode);
+    ImGui::TextDisabled(
+      "Target %d x %d | Backend %s | Active %s",
+      target_size.x,
+      target_size.y,
+      backend_name,
+      active_mode);
     ImGui::SameLine();
     ImGui::TextDisabled("| IBL %s", mEngine->is_ibl_available() ? "Ready" : "Off");
 
-    if (deferred_requested && !deferred_available)
+    if (!scene_renderer_available)
+    {
+      ImGui::TextColored(
+        ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
+        "%s device path is active, but the runtime scene renderer is still OpenGL-only.",
+        backend_name);
+    }
+    else if (deferred_requested && !deferred_available)
     {
       ImGui::TextColored(
         ImVec4(0.95f, 0.75f, 0.25f, 1.0f),
@@ -194,13 +214,28 @@ namespace nui
 
     const uint32_t tex_id = mEngine->get_output_texture();
     if (tex_id != 0)
+    {
       ImGui::Image((void*)(intptr_t)tex_id, display_size, ImVec2(0, 1), ImVec2(1, 0));
+    }
     else
-      ImGui::TextColored(ImVec4(1, 1, 0, 1), "FBO texture invalid");
+    {
+      ImGui::Dummy(display_size);
+
+      const std::string placeholder_text = scene_renderer_available
+        ? std::string("FBO texture invalid")
+        : std::string(backend_name) + " device path is active. Scene renderer is not implemented yet.";
+      const ImU32 placeholder_color = scene_renderer_available
+        ? IM_COL32(255, 255, 0, 255)
+        : IM_COL32(242, 191, 91, 255);
+      ImGui::GetWindowDrawList()->AddText(
+        ImVec2(p0.x + 14.0f, p0.y + 14.0f),
+        placeholder_color,
+        placeholder_text.c_str());
+    }
 
     ImGui::GetWindowDrawList()->AddRect(
-      ImGui::GetItemRectMin(),
-      ImGui::GetItemRectMax(),
+      p0,
+      p1,
       IM_COL32(70, 70, 70, 255),
       0.0f,
       0,

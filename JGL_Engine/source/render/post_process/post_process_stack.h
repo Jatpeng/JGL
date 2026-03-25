@@ -2,12 +2,11 @@
 
 #include "pch.h"
 #include "engine/resource_manager.h"
+#include "render/render_base.h"
 #include "shader/shader_util.h"
 
 namespace nrender
 {
-  class OpenGL_FrameBuffer;
-
   class PostProcessStack
   {
   public:
@@ -33,7 +32,7 @@ namespace nrender
     std::unique_ptr<nshaders::Shader> mEffectShader;
     std::shared_ptr<Material> mEffectMaterial;
     std::string mEffectMaterialPath;
-    std::unique_ptr<OpenGL_FrameBuffer> mOutputBuffer;
+    std::unique_ptr<FrameBuffer> mOutputBuffer;
     uint32_t mQuadVAO = 0;
     uint32_t mQuadVBO = 0;
     int32_t mOutputWidth = 0;

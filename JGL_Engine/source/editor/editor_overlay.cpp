@@ -4,6 +4,7 @@
 
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "render/device/render_device.h"
 #include "window/window.h"
 
 namespace neditor
@@ -12,8 +13,8 @@ namespace neditor
   {
     on_detach();
 
-    mUiContext = std::make_unique<nrender::UIContext>();
-    if (!mUiContext->init(&window))
+    mUiContext = nrender::RenderDeviceManager::instance().create_ui_context();
+    if (!mUiContext || !mUiContext->init(&window))
       mUiContext.reset();
 
     mLayoutInitialized = false;
