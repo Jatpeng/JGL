@@ -13,6 +13,34 @@ namespace nengine
 {
   namespace
   {
+    struct LightUniformNames
+    {
+      std::string position;
+      std::string direction;
+      std::string color;
+      std::string enabled;
+      std::string type;
+    };
+
+    static std::vector<LightUniformNames> s_LightNamesCache;
+
+    void ensure_light_names_cache(size_t max_lights)
+    {
+      if (s_LightNamesCache.size() >= max_lights)
+        return;
+
+      s_LightNamesCache.resize(max_lights);
+      for (size_t i = 0; i < max_lights; ++i)
+      {
+        std::string prefix = "lights[" + std::to_string(i) + "].";
+        s_LightNamesCache[i].position = prefix + "position";
+        s_LightNamesCache[i].direction = prefix + "direction";
+        s_LightNamesCache[i].color = prefix + "color";
+        s_LightNamesCache[i].enabled = prefix + "enabled";
+        s_LightNamesCache[i].type = prefix + "type";
+      }
+    }
+
     constexpr int kForwardIBLIrradianceUnit = 8;
     constexpr int kForwardIBLPrefilterUnit = 9;
     constexpr int kForwardIBLBrdfUnit = 10;
@@ -1130,6 +1158,8 @@ namespace nengine
       return;
 
     constexpr size_t kMaxDeferredLights = 8;
+    ensure_light_names_cache(kMaxDeferredLights);
+
     size_t light_index = 0;
     int shadow_light_index = -1;
 
@@ -1142,13 +1172,14 @@ namespace nengine
         if (!light || !transform || light_index >= kMaxDeferredLights)
           continue;
 
-        shader->set_vec3(transform->position, "lights[" + std::to_string(light_index) + "].position");
-        shader->set_vec3(light->direction(), "lights[" + std::to_string(light_index) + "].direction");
+        const auto& names = s_LightNamesCache[light_index];
+        shader->set_vec3(transform->position, names.position);
+        shader->set_vec3(light->direction(), names.direction);
         shader->set_vec3(
           light->color() * light->strength(),
-          "lights[" + std::to_string(light_index) + "].color");
-        shader->set_i1(light->enabled() ? 1 : 0, "lights[" + std::to_string(light_index) + "].enabled");
-        shader->set_i1(static_cast<int>(light->type()), "lights[" + std::to_string(light_index) + "].type");
+          names.color);
+        shader->set_i1(light->enabled() ? 1 : 0, names.enabled);
+        shader->set_i1(static_cast<int>(light->type()), names.type);
         if (mShadowEnabled && entity->id() == mShadowCasterEntityId)
           shadow_light_index = static_cast<int>(light_index);
         ++light_index;
@@ -1159,11 +1190,12 @@ namespace nengine
 
     for (; light_index < kMaxDeferredLights; ++light_index)
     {
-      shader->set_vec3(glm::vec3(0.0f), "lights[" + std::to_string(light_index) + "].position");
-      shader->set_vec3(glm::vec3(0.0f, -1.0f, 0.0f), "lights[" + std::to_string(light_index) + "].direction");
-      shader->set_vec3(glm::vec3(0.0f), "lights[" + std::to_string(light_index) + "].color");
-      shader->set_i1(0, "lights[" + std::to_string(light_index) + "].enabled");
-      shader->set_i1(static_cast<int>(LightComponent::LightType::Point), "lights[" + std::to_string(light_index) + "].type");
+      const auto& names = s_LightNamesCache[light_index];
+      shader->set_vec3(glm::vec3(0.0f), names.position);
+      shader->set_vec3(glm::vec3(0.0f, -1.0f, 0.0f), names.direction);
+      shader->set_vec3(glm::vec3(0.0f), names.color);
+      shader->set_i1(0, names.enabled);
+      shader->set_i1(static_cast<int>(LightComponent::LightType::Point), names.type);
     }
 
     apply_shadow_state(shader, shadow_texture_unit, shadow_light_index);
