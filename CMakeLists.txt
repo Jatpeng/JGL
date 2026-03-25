@@ -327,3 +327,5 @@ add_custom_target(wiki_docs
 add_custom_target(docs_all
     DEPENDS api_docs wiki_docs
 )
+
+add_subdirectory(${SRC_ROOT}/tests)
